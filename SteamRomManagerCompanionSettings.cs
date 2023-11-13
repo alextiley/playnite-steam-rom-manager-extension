@@ -6,9 +6,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SteamBigPictureHandler
+namespace SteamRomManagerCompanion
 {
-    public class SteamBigPictureHandlerSettings : ObservableObject
+    public class SteamRomManagerCompanionSettings : ObservableObject
     {
         private string option1 = string.Empty;
         private bool option2 = false;
@@ -22,13 +22,13 @@ namespace SteamBigPictureHandler
         public bool OptionThatWontBeSaved { get => optionThatWontBeSaved; set => SetValue(ref optionThatWontBeSaved, value); }
     }
 
-    public class SteamBigPictureHandlerSettingsViewModel : ObservableObject, ISettings
+    public class SteamRomManagerCompanionSettingsViewModel : ObservableObject, ISettings
     {
-        private readonly SteamBigPictureHandler plugin;
-        private SteamBigPictureHandlerSettings editingClone { get; set; }
+        private readonly SteamRomManagerCompanion plugin;
+        private SteamRomManagerCompanionSettings editingClone { get; set; }
 
-        private SteamBigPictureHandlerSettings settings;
-        public SteamBigPictureHandlerSettings Settings
+        private SteamRomManagerCompanionSettings settings;
+        public SteamRomManagerCompanionSettings Settings
         {
             get => settings;
             set
@@ -38,13 +38,13 @@ namespace SteamBigPictureHandler
             }
         }
 
-        public SteamBigPictureHandlerSettingsViewModel(SteamBigPictureHandler plugin)
+        public SteamRomManagerCompanionSettingsViewModel(SteamRomManagerCompanion plugin)
         {
             // Injecting your plugin instance is required for Save/Load method because Playnite saves data to a location based on what plugin requested the operation.
             this.plugin = plugin;
 
             // Load saved settings.
-            var savedSettings = plugin.LoadPluginSettings<SteamBigPictureHandlerSettings>();
+            var savedSettings = plugin.LoadPluginSettings<SteamRomManagerCompanionSettings>();
 
             // LoadPluginSettings returns null if no saved data is available.
             if (savedSettings != null)
@@ -53,7 +53,7 @@ namespace SteamBigPictureHandler
             }
             else
             {
-                Settings = new SteamBigPictureHandlerSettings();
+                Settings = new SteamRomManagerCompanionSettings();
             }
         }
 

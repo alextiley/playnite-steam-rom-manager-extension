@@ -13,11 +13,11 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
-namespace SteamBigPictureHandler
+namespace SteamRomManagerCompanion
 {
-    public partial class SteamBigPictureHandlerSettingsView : UserControl
+    public partial class SteamRomManagerCompanionSettingsView : UserControl
     {
-        public SteamBigPictureHandlerSettingsView()
+        public SteamRomManagerCompanionSettingsView()
         {
             InitializeComponent();
         }

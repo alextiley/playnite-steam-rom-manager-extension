@@ -13,7 +13,7 @@ using Newtonsoft.Json;
 using System.Runtime.InteropServices.ComTypes;
 using System.IO;
 
-namespace SteamBigPictureHandler
+namespace SteamRomManagerCompanion
 {
     public class SteamRomManagerManifestJson
     {
@@ -42,7 +42,7 @@ namespace SteamBigPictureHandler
         public string LaunchOptions { get; set; }
     }
 
-    public class SteamBigPictureHandler : GenericPlugin
+    public class SteamRomManagerCompanion : GenericPlugin
     {
         private static readonly ILogger logger = LogManager.GetLogger();
 
@@ -50,13 +50,13 @@ namespace SteamBigPictureHandler
         private string playniteDir;
         private string dataDir;
 
-        private SteamBigPictureHandlerSettingsViewModel settings { get; set; }
+        private SteamRomManagerCompanionSettingsViewModel settings { get; set; }
 
         public override Guid Id { get; } = Guid.Parse("5fe1d136-a9dc-44d7-80d2-43c02df6e546");
 
-        public SteamBigPictureHandler(IPlayniteAPI api) : base(api)
+        public SteamRomManagerCompanion(IPlayniteAPI api) : base(api)
         {
-            settings = new SteamBigPictureHandlerSettingsViewModel(this);
+            settings = new SteamRomManagerCompanionSettingsViewModel(this);
             Properties = new GenericPluginProperties
             {
                 HasSettings = true
@@ -117,7 +117,7 @@ namespace SteamBigPictureHandler
 
             // Group the games into their respective libraries.
             var mappings = games
-                .GroupBy(game => GetLibraryPlugin(game))
+                .GroupBy(game => this.GetLibraryPlugin(game))
                 .ToDictionary(
                     group => group.Key,
                     group => group.Select(
@@ -130,15 +130,15 @@ namespace SteamBigPictureHandler
                     ).ToList()
                 );
 
-            logger.Info($"{mappings.Count()} libraries found");
+            this.CleanDirectory(this.dataDir);
 
-            logger.Info($"writing manifest files to {this.dataDir}");
+            logger.Info($"writing manifest files to {this.dataDir} for {mappings.Count()} libraries");
 
             mappings.ForEach(
                 (mapping) =>
                 {
                     logger.Info($"writing manifest for library {mapping.Key.Name}");
-                    WriteManifestJson(mapping);
+                    this.WriteManifestJson(mapping);
                     logger.Info($"manifest successfully written for library {mapping.Key.Name}");
                 }
             );
@@ -151,7 +151,7 @@ namespace SteamBigPictureHandler
 
         public override UserControl GetSettingsView(bool firstRunSettings)
         {
-            return new SteamBigPictureHandlerSettingsView();
+            return new SteamRomManagerCompanionSettingsView();
         }
 
         private LibraryPlugin GetLibraryPlugin(Game Game)
@@ -167,20 +167,12 @@ namespace SteamBigPictureHandler
             var manifest = mapping.Value;
             var libraryDir = Path.Combine(this.dataDir, library.Name);
 
-            // Create subdirectory or clear existing one
-            if (!Directory.Exists(libraryDir))
-            {
-                Directory.CreateDirectory(libraryDir);
-            }
-            else
-            {
-                CleanDirectory(libraryDir);
-            }
+            Directory.CreateDirectory(libraryDir);
 
             // Write manifest.json file
             var manifestPath = Path.Combine(libraryDir, "manifest.json");
             var manifestJson = JsonConvert.SerializeObject(manifest, Formatting.None);
-            
+
             File.WriteAllText(manifestPath, manifestJson, Encoding.UTF8);
 
             logger.Info($"manifest.json file written to: {manifestPath}");
@@ -188,6 +180,8 @@ namespace SteamBigPictureHandler
 
         private void CleanDirectory(String dir)
         {
+            logger.Info($"cleaning data directory: {dir}");
+
             foreach (var file in Directory.GetFiles(dir))
             {
                 File.Delete(file);
@@ -196,6 +190,7 @@ namespace SteamBigPictureHandler
             {
                 Directory.Delete(subdir, true);
             }
+            logger.Info("data directory successfully cleaned");
         }
     }
 }
