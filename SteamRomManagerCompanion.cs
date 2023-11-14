@@ -1,32 +1,31 @@
-﻿using Playnite.SDK;
+﻿using Newtonsoft.Json;
+using Playnite.SDK;
 using Playnite.SDK.Events;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Controls;
-using Newtonsoft.Json;
-using System.Runtime.InteropServices.ComTypes;
-using System.IO;
 
 namespace SteamRomManagerCompanion
 {
     public class SteamRomManagerManifestJson
     {
         public SteamRomManagerManifestJson(
-            String title,
-            String target,
-            String startIn,
-            String launchOptions
-        ) {
-            this.StartIn = startIn;
-            this.Title = title;
-            this.Target = target;
-            this.LaunchOptions = launchOptions;
+            string title,
+            string target,
+            string startIn,
+            string launchOptions
+        )
+        {
+            StartIn = startIn;
+            Title = title;
+            Target = target;
+            LaunchOptions = launchOptions;
         }
 
         [JsonProperty("title")]
@@ -46,9 +45,9 @@ namespace SteamRomManagerCompanion
     {
         private static readonly ILogger logger = LogManager.GetLogger();
 
-        private string playniteExe;
-        private string playniteDir;
-        private string dataDir;
+        private readonly string playniteExe;
+        private readonly string playniteDir;
+        private readonly string dataDir;
 
         private SteamRomManagerCompanionSettingsViewModel settings { get; set; }
 
@@ -62,7 +61,7 @@ namespace SteamRomManagerCompanion
                 HasSettings = true
             };
 
-            dataDir = this.GetPluginUserDataPath();
+            dataDir = GetPluginUserDataPath();
             playniteExe = Process.GetCurrentProcess().MainModule.FileName;
             playniteDir = Path.GetDirectoryName(playniteExe);
         }
@@ -105,40 +104,41 @@ namespace SteamRomManagerCompanion
         public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
         {
             logger.Info("library updated, fetching list of games");
-            logger.Info($"process path is {this.playniteExe}");
-            logger.Info($"install path is {this.playniteDir}");
-            logger.Info($"extension data path is {this.dataDir}");
+
+            logger.Info($"process path is {playniteExe}");
+            logger.Info($"install path is {playniteDir}");
+            logger.Info($"extension data path is {dataDir}");
 
             // Get all visible games.
-            var games = this.PlayniteApi.Database.Games
+            IEnumerable<Game> games = PlayniteApi.Database.Games
                 .Where((game) => !game.Hidden);
 
             logger.Info($"{games.Count()} games found");
 
             // Group the games into their respective libraries.
-            var mappings = games
-                .GroupBy(game => this.GetLibraryPlugin(game))
+            Dictionary<LibraryPlugin, List<SteamRomManagerManifestJson>> mappings = games
+                .GroupBy(game => GetLibraryPlugin(game))
                 .ToDictionary(
                     group => group.Key,
                     group => group.Select(
                         game => new SteamRomManagerManifestJson(
                             game.Name,
-                            this.playniteExe,
-                            this.playniteDir,
+                            playniteExe,
+                            playniteDir,
                             $"playnite://install-or-start/{game.Id}"
                          )
                     ).ToList()
                 );
 
-            this.CleanDirectory(this.dataDir);
+            CleanDirectory(dataDir);
 
-            logger.Info($"writing manifest files to {this.dataDir} for {mappings.Count()} libraries");
+            logger.Info($"writing manifest files to {dataDir} for {mappings.Count()} libraries");
 
             mappings.ForEach(
                 (mapping) =>
                 {
                     logger.Info($"writing manifest for library {mapping.Key.Name}");
-                    this.WriteManifestJson(mapping);
+                    WriteManifestJson(mapping);
                     logger.Info($"manifest successfully written for library {mapping.Key.Name}");
                 }
             );
@@ -156,37 +156,37 @@ namespace SteamRomManagerCompanion
 
         private LibraryPlugin GetLibraryPlugin(Game Game)
         {
-            return this.PlayniteApi.Addons.Plugins.Find(
+            return PlayniteApi.Addons.Plugins.Find(
                 (plugin) => plugin.Id == Game.PluginId
             ) as LibraryPlugin;
         }
 
         private void WriteManifestJson(KeyValuePair<LibraryPlugin, List<SteamRomManagerManifestJson>> mapping)
         {
-            var library = mapping.Key;
-            var manifest = mapping.Value;
-            var libraryDir = Path.Combine(this.dataDir, library.Name);
+            LibraryPlugin library = mapping.Key;
+            List<SteamRomManagerManifestJson> manifest = mapping.Value;
+            string libraryDir = Path.Combine(dataDir, library.Name);
 
-            Directory.CreateDirectory(libraryDir);
+            _ = Directory.CreateDirectory(libraryDir);
 
             // Write manifest.json file
-            var manifestPath = Path.Combine(libraryDir, "manifest.json");
-            var manifestJson = JsonConvert.SerializeObject(manifest, Formatting.None);
+            string manifestPath = Path.Combine(libraryDir, "manifest.json");
+            string manifestJson = JsonConvert.SerializeObject(manifest, Formatting.None);
 
             File.WriteAllText(manifestPath, manifestJson, Encoding.UTF8);
 
             logger.Info($"manifest.json file written to: {manifestPath}");
         }
 
-        private void CleanDirectory(String dir)
+        private void CleanDirectory(string dir)
         {
             logger.Info($"cleaning data directory: {dir}");
 
-            foreach (var file in Directory.GetFiles(dir))
+            foreach (string file in Directory.GetFiles(dir))
             {
                 File.Delete(file);
             }
-            foreach (var subdir in Directory.GetDirectories(dir))
+            foreach (string subdir in Directory.GetDirectories(dir))
             {
                 Directory.Delete(subdir, true);
             }

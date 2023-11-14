@@ -1,10 +1,6 @@
 ﻿using Playnite.SDK;
 using Playnite.SDK.Data;
-using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SteamRomManagerCompanion
 {
@@ -44,17 +40,10 @@ namespace SteamRomManagerCompanion
             this.plugin = plugin;
 
             // Load saved settings.
-            var savedSettings = plugin.LoadPluginSettings<SteamRomManagerCompanionSettings>();
+            SteamRomManagerCompanionSettings savedSettings = plugin.LoadPluginSettings<SteamRomManagerCompanionSettings>();
 
             // LoadPluginSettings returns null if no saved data is available.
-            if (savedSettings != null)
-            {
-                Settings = savedSettings;
-            }
-            else
-            {
-                Settings = new SteamRomManagerCompanionSettings();
-            }
+            Settings = savedSettings ?? new SteamRomManagerCompanionSettings();
         }
 
         public void BeginEdit()
