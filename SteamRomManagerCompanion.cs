@@ -45,39 +45,23 @@ namespace SteamRomManagerCompanion
 
         public override void OnGameInstalled(OnGameInstalledEventArgs args)
         {
-            // Add code to be executed when game is finished installing.
-        }
-
-        public override void OnGameStarted(OnGameStartedEventArgs args)
-        {
-            // Add code to be executed when game is started running.
-        }
-
-        public override void OnGameStarting(OnGameStartingEventArgs args)
-        {
-            // Add code to be executed when game is preparing to be started.
+            // Get the current process and attempt to restart it.
+            // This is a hack to trick steam into thinking that the process finished!
+            RestartPlaynite();
         }
 
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
-            // Add code to be executed when game is preparing to be started.
+            // Get the current process and attempt to restart it.
+            // This is a hack to trick steam into thinking that the Playnite process has finished!
+            RestartPlaynite();
         }
 
-        public override void OnGameUninstalled(OnGameUninstalledEventArgs args)
-        {
-            // Add code to be executed when game is uninstalled.
-        }
 
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             logger.Info("registering playnite://go/{id} uri handler");
             uriHandler.Register(URI_HANDLER_PATH);
-        }
-
-        public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
-        {
-            logger.Info("cleaning up uri handler");
-            uriHandler.Unregister(URI_HANDLER_PATH);
         }
 
         public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
@@ -121,6 +105,16 @@ namespace SteamRomManagerCompanion
                     logger.Info($"manifest successfully written for library {mapping.Key.Name}");
                 }
             );
+
+            // TODO: Download SRM binary.
+
+            // TODO: Generate SRM parser configuration JSON for each manifest.
+
+            // TODO: Find Steam executable and kill it if running.
+
+            // TODO: Run SRM for each manifest and parser configuration combination.
+
+            // TODO: Restart Steam if it was previously running.
         }
 
         public override ISettings GetSettings(bool firstRunSettings)
@@ -148,7 +142,6 @@ namespace SteamRomManagerCompanion
 
             _ = Directory.CreateDirectory(libraryDir);
 
-            // Write manifest.json file
             string manifestPath = Path.Combine(libraryDir, "manifest.json");
             string manifestJson = JsonConvert.SerializeObject(manifest, Formatting.None);
 
@@ -170,6 +163,23 @@ namespace SteamRomManagerCompanion
                 Directory.Delete(subdir, true);
             }
             logger.Info("data directory successfully cleaned");
+        }
+
+        private void RestartPlaynite()
+        {
+            Process CurrentProcess = Process.GetCurrentProcess();
+
+            // Hack, timeout doesn't work so this is the next best thing.
+            ProcessStartInfo Info = new ProcessStartInfo
+            {
+                Arguments = "/C ping 127.0.0.1 -n 2 && \"" + CurrentProcess.MainModule.FileName + "\"",
+                WindowStyle = ProcessWindowStyle.Hidden,
+                CreateNoWindow = true,
+                FileName = "cmd.exe"
+            };
+            _ = Process.Start(Info);
+
+            CurrentProcess.Kill();
         }
     }
 }
