@@ -13,41 +13,17 @@ using System.Windows.Controls;
 
 namespace SteamRomManagerCompanion
 {
-    public class SteamRomManagerManifestJson
-    {
-        public SteamRomManagerManifestJson(
-            string title,
-            string target,
-            string startIn,
-            string launchOptions
-        )
-        {
-            StartIn = startIn;
-            Title = title;
-            Target = target;
-            LaunchOptions = launchOptions;
-        }
-
-        [JsonProperty("title")]
-        public string Title { get; set; }
-
-        [JsonProperty("target")]
-        public string Target { get; set; }
-
-        [JsonProperty("startIn")]
-        public string StartIn { get; set; }
-
-        [JsonProperty("launchOptions")]
-        public string LaunchOptions { get; set; }
-    }
-
     public class SteamRomManagerCompanion : GenericPlugin
     {
+        private const string URI_HANDLER_PATH = "go";
+
         private static readonly ILogger logger = LogManager.GetLogger();
 
         private readonly string playniteExe;
         private readonly string playniteDir;
         private readonly string dataDir;
+
+        private readonly IUriHandler uriHandler;
 
         private SteamRomManagerCompanionSettingsViewModel settings { get; set; }
 
@@ -55,6 +31,7 @@ namespace SteamRomManagerCompanion
 
         public SteamRomManagerCompanion(IPlayniteAPI api) : base(api)
         {
+            uriHandler = new SteamRomManagerUriHandler(PlayniteApi);
             settings = new SteamRomManagerCompanionSettingsViewModel(this);
             Properties = new GenericPluginProperties
             {
@@ -93,12 +70,14 @@ namespace SteamRomManagerCompanion
 
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
-            // Add code to be executed when Playnite is initialized.
+            logger.Info("registering playnite://go/{id} uri handler");
+            uriHandler.Register(URI_HANDLER_PATH);
         }
 
         public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
         {
-            // Add code to be executed when Playnite is shutting down.
+            logger.Info("cleaning up uri handler");
+            uriHandler.Unregister(URI_HANDLER_PATH);
         }
 
         public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
@@ -116,16 +95,16 @@ namespace SteamRomManagerCompanion
             logger.Info($"{games.Count()} games found");
 
             // Group the games into their respective libraries.
-            Dictionary<LibraryPlugin, List<SteamRomManagerManifestJson>> mappings = games
+            Dictionary<LibraryPlugin, List<SteamRomManagerManifest>> mappings = games
                 .GroupBy(game => GetLibraryPlugin(game))
                 .ToDictionary(
                     group => group.Key,
                     group => group.Select(
-                        game => new SteamRomManagerManifestJson(
+                        game => new SteamRomManagerManifest(
                             game.Name,
                             playniteExe,
                             playniteDir,
-                            $"playnite://install-or-start/{game.Id}"
+                            $"playnite://go/{game.Id}"
                          )
                     ).ToList()
                 );
@@ -161,10 +140,10 @@ namespace SteamRomManagerCompanion
             ) as LibraryPlugin;
         }
 
-        private void WriteManifestJson(KeyValuePair<LibraryPlugin, List<SteamRomManagerManifestJson>> mapping)
+        private void WriteManifestJson(KeyValuePair<LibraryPlugin, List<SteamRomManagerManifest>> mapping)
         {
             LibraryPlugin library = mapping.Key;
-            List<SteamRomManagerManifestJson> manifest = mapping.Value;
+            List<SteamRomManagerManifest> manifest = mapping.Value;
             string libraryDir = Path.Combine(dataDir, library.Name);
 
             _ = Directory.CreateDirectory(libraryDir);
