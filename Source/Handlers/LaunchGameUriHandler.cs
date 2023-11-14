@@ -1,39 +1,47 @@
 ﻿using Playnite.SDK;
 using Playnite.SDK.Models;
+using SteamRomManagerCompanion.Interfaces;
 using System;
 
-namespace SteamRomManagerCompanion
+namespace SteamRomManagerCompanion.Handlers
 {
-    internal interface IUriHandler
+    internal class LaunchGameUriHandlerArgs
     {
-        void Register(string path);
-        void Unregister(string path);
+        public IPlayniteAPI PlayniteAPI { get; set; }
+        public IGameStateTracker gameStateTracker { get; set; }
     }
 
-    internal class SteamRomManagerUriHandler : IUriHandler
+    internal class LaunchGameUriHandler : IUriHandler
     {
         private readonly IPlayniteAPI PlayniteApi;
+        private readonly IGameStateTracker gameStateTracker;
 
         private static readonly ILogger logger = LogManager.GetLogger();
 
-        public SteamRomManagerUriHandler(IPlayniteAPI PlayniteApi)
+        public LaunchGameUriHandler(LaunchGameUriHandlerArgs args)
         {
-            this.PlayniteApi = PlayniteApi;
+            PlayniteApi = args.PlayniteAPI;
+            gameStateTracker = args.gameStateTracker;
         }
 
         public void Register(string path)
         {
+            logger.Info($"registering handler 'playnite://{path}/.*'");
+
             PlayniteApi.UriHandler.RegisterSource(path, (args) =>
             {
+                logger.Info($"handler 'playnite://{path}/.*' invoked");
+
                 string id = args.Arguments[0];
-                Guid? guid = ParseGameIdFromEventArgs(id);
-                if (guid == null)
+                Guid? parsedGuid = ParseGameIdFromEventArgs(id);
+                if (parsedGuid == null)
                 {
                     logger.Error($"uri handler argument validation failed for id: {id}");
                     return;
                 }
 
-                Game game = PlayniteApi.Database.Games.Get((Guid)guid);
+                Guid guid = (Guid)parsedGuid;
+                Game game = PlayniteApi.Database.Games.Get(guid);
                 if (game == null)
                 {
                     logger.Error($"unable to find game with id: {guid}");
@@ -43,13 +51,16 @@ namespace SteamRomManagerCompanion
                 if (game.IsInstalled)
                 {
                     logger.Info($"launching game: {game.Name}");
-                    PlayniteApi.StartGame((Guid)guid);
+                    PlayniteApi.StartGame(guid);
                 }
                 else
                 {
                     logger.Info($"installing game: {game.Name}");
-                    PlayniteApi.InstallGame((Guid)guid);
+                    PlayniteApi.InstallGame(guid);
                 }
+
+                logger.Info($"game initialised, marking as started: {guid}");
+                gameStateTracker.Start(guid);
             });
         }
 
