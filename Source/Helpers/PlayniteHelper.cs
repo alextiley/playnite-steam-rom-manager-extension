@@ -3,16 +3,16 @@ using System.IO;
 
 namespace SteamRomManagerCompanion
 {
-    internal class PlayniteProcessHelper
+    internal class PlayniteHelper
     {
-        public string GetExePath()
+        public string GetExecutablePath()
         {
             return Process.GetCurrentProcess().MainModule.FileName;
         }
 
         public string GetInstallPath()
         {
-            return Path.GetDirectoryName(GetExePath());
+            return Path.GetDirectoryName(GetExecutablePath());
         }
 
         public void Restart(string flags)

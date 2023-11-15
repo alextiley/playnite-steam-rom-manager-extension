@@ -6,7 +6,7 @@ using System.Text;
 
 namespace SteamRomManagerCompanion
 {
-    internal class FileSystemHelper
+    internal class FilesystemHelper
     {
         public void DeleteDirectoryContents(string path)
         {
@@ -45,8 +45,14 @@ namespace SteamRomManagerCompanion
 
         public void WriteJson(string path, object json)
         {
-            var jsonString = JsonConvert.SerializeObject(json, Formatting.None);
-            WriteFile(path, jsonString);
+            CreateDirectory(Path.GetDirectoryName(path));
+            WriteFile(path, JsonConvert.SerializeObject(json, Formatting.None));
+        }
+
+        public void WriteBinary(string path, byte[] bytes)
+        {
+            CreateDirectory(Path.GetDirectoryName(path));
+            File.WriteAllBytes(path, bytes);
         }
     }
 }

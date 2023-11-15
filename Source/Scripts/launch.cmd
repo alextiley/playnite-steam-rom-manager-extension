@@ -17,9 +17,9 @@ start /b "launch_playnite" %PLAYNITE_EXE% --hidesplashscreen --startclosedtotray
 :: TODO Only do this if Playnite was not already running.
 timeout 5
 
-:: Launch our custom playnite://install-or-start URI handler.
+:: Launch our custom playnite://steam-launcher URI handler.
 :: This URI will record the game state to a text file for us.
-powershell -command "Start-Process playnite://install-or-start/%GUID%"
+powershell -command "Start-Process playnite://steam-launcher/%GUID%"
 
 :: Wait for the tracking file to be deleted
 :loop

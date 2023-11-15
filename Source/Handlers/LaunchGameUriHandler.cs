@@ -10,6 +10,8 @@ namespace SteamRomManagerCompanion
 
     internal class LaunchGameUriHandler
     {
+        public bool WasTriggered { get; set; } = false;
+
         private readonly IPlayniteAPI PlayniteApi;
 
         private static readonly ILogger logger = LogManager.GetLogger();
@@ -53,6 +55,7 @@ namespace SteamRomManagerCompanion
                     logger.Info($"installing game: {game.Name}");
                     PlayniteApi.InstallGame(guid);
                 }
+                WasTriggered = true;
             });
         }
 

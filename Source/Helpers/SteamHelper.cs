@@ -5,13 +5,13 @@ using System.IO;
 
 namespace SteamRomManagerCompanion
 {
-    internal class SteamProcessHelper
+    internal class SteamHelper
     {
         private static readonly string steamExecutableFilename = "steam.exe";
         private static readonly string registryKey64 = "Software\\Wow6432Node\\Valve\\Steam";
         private static readonly string registryKey32 = "Software\\Valve\\Steam";
 
-        public string GetExePath()
+        public string GetExecutablePath()
         {
             return
                 GetSteamInstallPathFromRegistry(registryKey64) ??
@@ -21,7 +21,7 @@ namespace SteamRomManagerCompanion
 
         public string GetInstallPath()
         {
-            return Path.GetDirectoryName(GetExePath());
+            return Path.GetDirectoryName(GetExecutablePath());
         }
 
         public void Start()
@@ -29,9 +29,9 @@ namespace SteamRomManagerCompanion
             var info = new ProcessStartInfo
             {
                 WorkingDirectory = GetInstallPath(),
-                WindowStyle = ProcessWindowStyle.Hidden,
+                WindowStyle = ProcessWindowStyle.Minimized,
                 CreateNoWindow = true,
-                FileName = GetExePath()
+                FileName = GetExecutablePath(),
             };
             _ = Process.Start(info);
         }
@@ -39,17 +39,23 @@ namespace SteamRomManagerCompanion
         public bool IsRunning()
         {
             return Process.GetProcessesByName(
-                Path.GetFileNameWithoutExtension(GetExePath())
+                Path.GetFileNameWithoutExtension(GetExecutablePath())
             ).Length > 0;
         }
 
         public void Stop()
         {
             Process.GetProcessesByName(
-                Path.GetFileNameWithoutExtension(GetExePath())
+                Path.GetFileNameWithoutExtension(GetExecutablePath())
             ).ForEach(
                 process => process.Kill()
             );
+        }
+
+        public string GetActiveSteamUsername()
+        {
+            var username = Registry.CurrentUser.OpenSubKey("Software\\Valve\\Steam").GetValue("AutoLoginUser");
+            return username?.ToString();
         }
 
         private string GetSteamInstallPathFromRegistry(string key)
