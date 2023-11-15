@@ -45,7 +45,7 @@ namespace SteamRomManagerCompanion
 
         public void WriteJson(string path, object json)
         {
-            string jsonString = JsonConvert.SerializeObject(json, Formatting.None);
+            var jsonString = JsonConvert.SerializeObject(json, Formatting.None);
             WriteFile(path, jsonString);
         }
     }

@@ -1,5 +1,4 @@
 ﻿using Playnite.SDK;
-using Playnite.SDK.Models;
 using System;
 
 namespace SteamRomManagerCompanion
@@ -28,16 +27,16 @@ namespace SteamRomManagerCompanion
             {
                 logger.Info($"handler 'playnite://{path}/.*' invoked");
 
-                string id = args.Arguments[0];
-                Guid? parsedGuid = ParseGameIdFromEventArgs(id);
+                var id = args.Arguments[0];
+                var parsedGuid = ParseGameIdFromEventArgs(id);
                 if (parsedGuid == null)
                 {
                     logger.Error($"uri handler argument validation failed for id: {id}");
                     return;
                 }
 
-                Guid guid = (Guid)parsedGuid;
-                Game game = PlayniteApi.Database.Games.Get(guid);
+                var guid = (Guid)parsedGuid;
+                var game = PlayniteApi.Database.Games.Get(guid);
                 if (game == null)
                 {
                     logger.Error($"unable to find game with id: {guid}");

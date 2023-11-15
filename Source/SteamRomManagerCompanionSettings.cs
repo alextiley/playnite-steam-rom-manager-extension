@@ -21,7 +21,7 @@ namespace SteamRomManagerCompanion
     public class SteamRomManagerCompanionSettingsViewModel : ObservableObject, ISettings
     {
         private readonly SteamRomManagerCompanion plugin;
-        private SteamRomManagerCompanionSettings editingClone { get; set; }
+        private SteamRomManagerCompanionSettings EditingClone { get; set; }
 
         private SteamRomManagerCompanionSettings settings;
         public SteamRomManagerCompanionSettings Settings
@@ -40,7 +40,7 @@ namespace SteamRomManagerCompanion
             this.plugin = plugin;
 
             // Load saved settings.
-            SteamRomManagerCompanionSettings savedSettings = plugin.LoadPluginSettings<SteamRomManagerCompanionSettings>();
+            var savedSettings = plugin.LoadPluginSettings<SteamRomManagerCompanionSettings>();
 
             // LoadPluginSettings returns null if no saved data is available.
             Settings = savedSettings ?? new SteamRomManagerCompanionSettings();
@@ -49,14 +49,14 @@ namespace SteamRomManagerCompanion
         public void BeginEdit()
         {
             // Code executed when settings view is opened and user starts editing values.
-            editingClone = Serialization.GetClone(Settings);
+            EditingClone = Serialization.GetClone(Settings);
         }
 
         public void CancelEdit()
         {
             // Code executed when user decides to cancel any changes made since BeginEdit was called.
             // This method should revert any changes made to Option1 and Option2.
-            Settings = editingClone;
+            Settings = EditingClone;
         }
 
         public void EndEdit()

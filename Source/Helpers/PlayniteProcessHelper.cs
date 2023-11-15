@@ -17,11 +17,11 @@ namespace SteamRomManagerCompanion
 
         public void Restart(string flags)
         {
-            Process currentProcess = Process.GetCurrentProcess();
+            var currentProcess = Process.GetCurrentProcess();
 
             // Start the current process again in ~5s.
             // This is a hack, timeout doesn't work so this is the next best thing.
-            ProcessStartInfo Info = new ProcessStartInfo
+            var Info = new ProcessStartInfo
             {
                 Arguments = $"/C ping 127.0.0.1 -n 5 && \"{currentProcess.MainModule.FileName}\" {flags}",
                 WindowStyle = ProcessWindowStyle.Hidden,
