@@ -82,11 +82,8 @@ namespace SteamRomManagerCompanion
             // Enable requests for starting or installing a game.
             uriHandler.Register(uriHandlerToRegister);
 
-            // Fetch Steam Rom Manager and store in the binaries data 
-            if (!await steamRomManager.DownloadBinary())
-            {
-                logger.Error("unable to download steam rom manager binary");
-            }
+            // Fetch Steam Rom Manager and store in the binaries directory.
+            _ = await steamRomManager.DownloadBinary();
         }
 
         public override void OnGameInstalled(OnGameInstalledEventArgs args)
@@ -96,6 +93,7 @@ namespace SteamRomManagerCompanion
             // that it spawned is still running.
             if (uriHandler.WasTriggered)
             {
+                logger.Info("game installed, restarting Playnite to trick steam into ending the running session");
                 playniteHelper.Restart(processRestartFlags);
             }
         }
@@ -107,6 +105,7 @@ namespace SteamRomManagerCompanion
             // that it spawned is still running.
             if (uriHandler.WasTriggered)
             {
+                logger.Info("game ended, restarting Playnite to trick steam into ending the running session");
                 playniteHelper.Restart(processRestartFlags);
             }
         }
@@ -119,9 +118,11 @@ namespace SteamRomManagerCompanion
             if (!steamRomManager.IsBinaryDownloaded())
             {
                 logger.Warn("steam rom manager not available, attempting to re-download");
-                var downloaded = await steamRomManager.DownloadBinary();
-                if (!downloaded)
+                if (!await steamRomManager.DownloadBinary())
                 {
+                    PlayniteApi.Notifications.Add(
+                        new NotificationMessage("srm_error", "Your library could not be synced with Steam: unable to download Steam Rom Manager.", NotificationType.Error)
+                    );
                     logger.Error("unable to download steam rom manager after library import. skipping auto-import into steam.");
                     return;
                 }
@@ -165,16 +166,20 @@ namespace SteamRomManagerCompanion
                 logger.Info($"manifest.json file written to: {path}");
             });
 
+            logger.Info("generating steam rom manager parser configurations and settings");
+
             // Generate Steam Rom Manager parser configurations for each library.
             // Skip Steam, we don't need non-steam shortcuts for those!
-            var libraries = libraryManifestPairs
-                .Select((pair) => pair.Key)
-                .SkipWhile(x => x.Name.ToLower().Contains("steam"));
-
-            var userConfigurations = steamRomManager.CreateUserConfigurations(libraries);
+            var userConfigurations = steamRomManager.CreateUserConfigurations(
+                libraryManifestPairs
+                    .Select((pair) => pair.Key)
+                    .SkipWhile(x => x.Name.ToLower().Contains("steam"))
+            );
 
             // Now generate the global settings config.
             var userSettings = steamRomManager.CreateUserSettings();
+
+            logger.Info("writing steam rom manager parser configurations and settings");
 
             // Write them to Steam Rom Manager's config directory.
             steamRomManager.WriteUserConfigurations(userConfigurations);
@@ -184,15 +189,24 @@ namespace SteamRomManagerCompanion
             var steamWasRunning = steamHelper.IsRunning();
             if (steamWasRunning)
             {
+                logger.Info("steam process already running, ending the process in preparation for library import");
                 steamHelper.Stop();
             }
 
-            // TODO: Run SRM for each manifest and parser configuration combination.
+            logger.Info("initialising library import");
+
+            // Import the library of games.
+            steamRomManager.ImportLibrary();
 
             // Restart Steam if it was previously running.
             if (steamWasRunning)
             {
+                logger.Info("import completed, restarting the steam process");
                 steamHelper.Start();
+            }
+            else
+            {
+                logger.Info("import completed");
             }
 
             PlayniteApi.Notifications.Add(

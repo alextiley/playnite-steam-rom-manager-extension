@@ -43,10 +43,10 @@ namespace SteamRomManagerCompanion
             File.WriteAllText(path, contents, Encoding.UTF8);
         }
 
-        public void WriteJson(string path, object json)
+        public void WriteJson(string path, object json, Formatting format = Formatting.None)
         {
             CreateDirectory(Path.GetDirectoryName(path));
-            WriteFile(path, JsonConvert.SerializeObject(json, Formatting.None));
+            WriteFile(path, JsonConvert.SerializeObject(json, format));
         }
 
         public void WriteBinary(string path, byte[] bytes)

@@ -1,4 +1,5 @@
-﻿using Playnite.SDK;
+﻿using Newtonsoft.Json;
+using Playnite.SDK;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using System;
@@ -67,23 +68,30 @@ namespace SteamRomManagerCompanion
             return File.Exists(binaryPath);
         }
 
+        public void ImportLibrary()
+        {
+            //
+        }
+
         public async Task<bool> DownloadBinary(bool force = false)
         {
+            logger.Info($"attempting to download steam rom manager binary from {binarySourceUri}");
+
             if (IsBinaryDownloaded() && !force)
             {
-                logger.Info($"steam rom manager already installed to {binaryPath}");
+                logger.Info($"install skipped, steam rom manager already exists at {binaryPath}");
                 return true;
             }
             var client = new HttpClient();
             try
             {
                 fileSystemHelper.WriteBinary(binaryPath, await client.GetByteArrayAsync(binarySourceUri));
-                logger.Info($"steam rom manager installed to {binaryPath}");
+                logger.Info($"install succeeded, steam rom manager ready at {binaryPath}");
                 return true;
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "error when downloading steam rom manager");
+                logger.Error(ex, "error, unable to download steam rom manager");
                 return false;
             }
         }
@@ -251,7 +259,7 @@ namespace SteamRomManagerCompanion
         private void WriteJsonToConfigDir(string filename, object contents)
         {
             var path = Path.Combine(binariesDir, configDirectory, filename);
-            fileSystemHelper.WriteJson(path, contents);
+            fileSystemHelper.WriteJson(path, contents, Formatting.Indented);
         }
     }
 }
