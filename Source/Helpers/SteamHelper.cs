@@ -24,18 +24,6 @@ namespace SteamRomManagerCompanion
             return Path.GetDirectoryName(GetExecutablePath());
         }
 
-        public void Start()
-        {
-            var info = new ProcessStartInfo
-            {
-                WorkingDirectory = GetInstallPath(),
-                WindowStyle = ProcessWindowStyle.Minimized,
-                CreateNoWindow = true,
-                FileName = GetExecutablePath(),
-            };
-            _ = Process.Start(info);
-        }
-
         public bool IsRunning()
         {
             return Process.GetProcessesByName(

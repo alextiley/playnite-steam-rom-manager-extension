@@ -152,7 +152,7 @@ namespace SteamRomManagerCompanion
             filesystemHelper.CreateDirectory(librariesDataDir);
             filesystemHelper.DeleteDirectoryContents(librariesDataDir);
 
-            logger.Info($"writing manifests for ${libraryManifestPairs.Count()} libraries");
+            logger.Info($"writing manifests for {libraryManifestPairs.Count()} libraries");
 
             // Write manifests for each library.
             _ = Parallel.ForEach(libraryManifestPairs, (pair) =>
@@ -198,17 +198,9 @@ namespace SteamRomManagerCompanion
             // Import the library of games.
             steamRomManager.ImportLibrary();
 
-            // Restart Steam if it was previously running.
-            if (steamWasRunning)
-            {
-                logger.Info("import completed, restarting the steam process");
-                steamHelper.Start();
-            }
-            else
-            {
-                logger.Info("import completed");
-            }
+            logger.Info("import completed");
 
+            // Let the user know the good news!
             PlayniteApi.Notifications.Add(
                 new NotificationMessage("srm_success", "Your library was successfully synced into Steam.", NotificationType.Info)
             );
