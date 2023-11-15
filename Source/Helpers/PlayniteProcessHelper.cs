@@ -1,10 +1,9 @@
-﻿using SteamRomManagerCompanion.Interfaces;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 
-namespace SteamRomManagerCompanion.Controllers
+namespace SteamRomManagerCompanion
 {
-    internal class PlayniteProcessController : IProcessController
+    internal class PlayniteProcessHelper
     {
         public string GetExePath()
         {
@@ -16,21 +15,23 @@ namespace SteamRomManagerCompanion.Controllers
             return Path.GetDirectoryName(GetExePath());
         }
 
-        public void Restart()
+        public void Restart(string flags)
         {
-            Process CurrentProcess = Process.GetCurrentProcess();
+            Process currentProcess = Process.GetCurrentProcess();
 
-            // Hack, timeout doesn't work so this is the next best thing.
+            // Start the current process again in ~5s.
+            // This is a hack, timeout doesn't work so this is the next best thing.
             ProcessStartInfo Info = new ProcessStartInfo
             {
-                Arguments = "/C ping 127.0.0.1 -n 2 && \"" + CurrentProcess.MainModule.FileName + "\"",
+                Arguments = $"/C ping 127.0.0.1 -n 5 && \"{currentProcess.MainModule.FileName}\" {flags}",
                 WindowStyle = ProcessWindowStyle.Hidden,
                 CreateNoWindow = true,
                 FileName = "cmd.exe"
             };
             _ = Process.Start(Info);
 
-            CurrentProcess.Kill();
+            // Kills the current process
+            currentProcess.Kill();
         }
     }
 }

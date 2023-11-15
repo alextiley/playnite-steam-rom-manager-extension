@@ -2,11 +2,6 @@
 using Playnite.SDK.Events;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
-using SteamRomManagerCompanion.Controllers;
-using SteamRomManagerCompanion.Handlers;
-using SteamRomManagerCompanion.Interfaces;
-using SteamRomManagerCompanion.Models;
-using SteamRomManagerCompanion.Storage;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,17 +12,16 @@ namespace SteamRomManagerCompanion
 {
     public class SteamRomManagerCompanion : GenericPlugin
     {
-        private const string URI_HANDLER_PATH = "install-or-start";
+        private const string uriHandlerToRegister = "install-or-start";
+        private const string processRestartFlags = "--hidesplashscreen --startclosedtotray --nolibupdate";
 
         private static readonly ILogger logger = LogManager.GetLogger();
 
         private readonly string librariesDataDir;
-        private readonly string gameStateTrackingDir;
 
-        private readonly IProcessController playniteProcess;
-        private readonly IUriHandler uriHandler;
-        private readonly FileSystemController fileSystem;
-        private readonly GameStateTracker gameStateTracker;
+        private readonly PlayniteProcessHelper playniteProcess;
+        private readonly LaunchGameUriHandler uriHandler;
+        private readonly FileSystemHelper fileSystem;
 
         private SteamRomManagerCompanionSettingsViewModel settings { get; set; }
 
@@ -37,24 +31,14 @@ namespace SteamRomManagerCompanion
         public SteamRomManagerCompanion(IPlayniteAPI api) : base(api)
         {
             librariesDataDir = Path.Combine(GetPluginUserDataPath(), "libraries");
-            gameStateTrackingDir = Path.Combine(GetPluginUserDataPath(), "tracking");
 
-            playniteProcess = new PlayniteProcessController();
-            fileSystem = new FileSystemController();
+            playniteProcess = new PlayniteProcessHelper();
+            fileSystem = new FileSystemHelper();
             settings = new SteamRomManagerCompanionSettingsViewModel(this);
-
-            gameStateTracker = new GameStateTracker(
-                new GameStateTrackerArgs
-                {
-                    dataDir = gameStateTrackingDir,
-                    fileSystem = fileSystem
-                }
-            );
 
             uriHandler = new LaunchGameUriHandler(
                 new LaunchGameUriHandlerArgs
                 {
-                    gameStateTracker = gameStateTracker,
                     PlayniteAPI = api,
                 }
             );
@@ -70,78 +54,64 @@ namespace SteamRomManagerCompanion
          */
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
-            // Reset libraries data directory
-            fileSystem.CreateDirectory(librariesDataDir);
-            fileSystem.EmptyDirectory(librariesDataDir);
+            // Remove safestart.flag file. This is a hack!
+            // The file is created by Playnite due to how we end the process.
+            // Removing this file prevents the prompt from showing when we restart.
+            fileSystem.Delete(
+                Path.Combine(playniteProcess.GetInstallPath(), "safestart.flag")
+            );
 
-            // Reset game state data
-            fileSystem.CreateDirectory(gameStateTrackingDir);
-            fileSystem.EmptyDirectory(gameStateTrackingDir);
+            // Create libraries data directory if it doesn't exist.
+            fileSystem.CreateDirectory(librariesDataDir);
 
             // Enable requests for starting or installing a game.
-            uriHandler.Register(URI_HANDLER_PATH);
-
-            // TODO: Copy the launch.cmd script into the data directory.
+            uriHandler.Register(uriHandlerToRegister);
         }
 
-        /**
-         * When a game is installed, mark it as "stopped" in our game tracker.
-         * The run script executed by Steam will poll against this state.
-         */
         public override void OnGameInstalled(OnGameInstalledEventArgs args)
         {
-            logger.Info($"game installed, marking as exited: {args.Game.Id}");
-            gameStateTracker.Stop(args.Game.Id);
+            // Restart Playnite when a game finishes installing.
+            // Steam will not think install has ended if the Playnite process
+            // that it spawned is still running.
+            playniteProcess.Restart(processRestartFlags);
         }
 
-        /**
-         * When a game ends, mark it as stopped in our game tracker.
-         * This will tell Steam to "end" the session when Playnite closes.
-         */
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
-            logger.Info($"game stopped, marking as exited: {args.Game.Id}");
-            gameStateTracker.Stop(args.Game.Id);
-        }
-
-        /**
-         * When the application is exiting, ensure we clean the game state directory.
-         * This will tell Steam to "end" the session when Playnite closes.
-         */
-        public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
-        {
-            logger.Info("playnite exiting, marking all games as exited");
-            fileSystem.EmptyDirectory(gameStateTrackingDir);
+            // Restart Playnite when a game session ends.
+            // Steam will not think play has ended if the Playnite process
+            // that it spawned is still running.
+            playniteProcess.Restart(processRestartFlags);
         }
 
         public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
         {
             logger.Info("library updated, fetching list of games");
 
-            string playniteExePath = playniteProcess.GetExePath();
             string playniteInstallDir = playniteProcess.GetInstallPath();
 
             // Get all visible games.
             IEnumerable<Game> games = PlayniteApi.Database.Games
                 .Where((game) => !game.Hidden);
 
-            logger.Info($"{games.Count()} games found");
+            logger.Info($"{games.Count()} games found. grouping games by library into steam rom manager manifest format");
 
             // Group the games into their respective libraries.
             Dictionary<LibraryPlugin, List<SteamRomManagerManifestEntry>> mappings = games
-                .GroupBy(game => GetLibraryPlugin(game))
+                .GroupBy(
+                    game => PlayniteApi.Addons.Plugins.Find(
+                        (plugin) => plugin.Id == game.PluginId
+                    ) as LibraryPlugin
+                )
                 .ToDictionary(
                     group => group.Key,
                     group => group.Select(
                         game => new SteamRomManagerManifestEntry(
                             new SteamRomManagerManifestEntryArgs
                             {
-                                // TODO: Pass a script as the target, stored in the data directory.
-                                // This script spawns the Playnite process, watches the underlying process that Playnite creates and waits for it to end.
-                                // Once it has ended, the script process terminates, informing Steam that the game or install process has now closed.
-                                LaunchOptions = $"playnite://{URI_HANDLER_PATH}/{game.Id}",
+                                LaunchOptions = "",
                                 StartIn = playniteInstallDir,
-                                Target = playniteExePath,
+                                Target = $"playnite://{uriHandlerToRegister}/{game.Id}",
                                 Title = game.Name
                             }
                          )
@@ -150,25 +120,24 @@ namespace SteamRomManagerCompanion
 
             logger.Info($"cleaning data directory: {librariesDataDir}");
 
-            fileSystem.EmptyDirectory(librariesDataDir);
+            // Clear manifests from previous library updates.
+            fileSystem.DeleteDirectoryContents(librariesDataDir);
 
             logger.Info($"writing manifest files to {librariesDataDir} for {mappings.Count()} libraries");
 
-            mappings.ForEach(
-                (mapping) =>
-                {
-                    logger.Info($"writing manifest for library {mapping.Key.Name}");
+            mappings.ForEach((mapping) =>
+            {
+                logger.Info($"writing manifest for library {mapping.Key.Name}");
 
-                    LibraryPlugin library = mapping.Key;
-                    List<SteamRomManagerManifestEntry> manifest = mapping.Value;
+                LibraryPlugin library = mapping.Key;
+                List<SteamRomManagerManifestEntry> manifest = mapping.Value;
 
-                    string path = Path.Combine(librariesDataDir, library.Name, "manifest.json");
+                string path = Path.Combine(librariesDataDir, library.Name, "manifest.json");
 
-                    fileSystem.WriteJson(path, manifest);
+                fileSystem.WriteJson(path, manifest);
 
-                    logger.Info($"manifest.json file written to: {path}");
-                }
-            );
+                logger.Info($"manifest.json file written to: {path}");
+            });
 
             // TODO: Download SRM binary.
 
@@ -189,13 +158,6 @@ namespace SteamRomManagerCompanion
         public override UserControl GetSettingsView(bool firstRunSettings)
         {
             return new SteamRomManagerCompanionSettingsView();
-        }
-
-        private LibraryPlugin GetLibraryPlugin(Game Game)
-        {
-            return PlayniteApi.Addons.Plugins.Find(
-                (plugin) => plugin.Id == Game.PluginId
-            ) as LibraryPlugin;
         }
     }
 }

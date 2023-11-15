@@ -1,6 +1,6 @@
 ﻿using Newtonsoft.Json;
 
-namespace SteamRomManagerCompanion.Models
+namespace SteamRomManagerCompanion
 {
     internal class SteamRomManagerManifestEntryArgs
     {

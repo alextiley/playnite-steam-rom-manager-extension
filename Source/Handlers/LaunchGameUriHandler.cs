@@ -1,27 +1,23 @@
 ﻿using Playnite.SDK;
 using Playnite.SDK.Models;
-using SteamRomManagerCompanion.Interfaces;
 using System;
 
-namespace SteamRomManagerCompanion.Handlers
+namespace SteamRomManagerCompanion
 {
     internal class LaunchGameUriHandlerArgs
     {
         public IPlayniteAPI PlayniteAPI { get; set; }
-        public IGameStateTracker gameStateTracker { get; set; }
     }
 
-    internal class LaunchGameUriHandler : IUriHandler
+    internal class LaunchGameUriHandler
     {
         private readonly IPlayniteAPI PlayniteApi;
-        private readonly IGameStateTracker gameStateTracker;
 
         private static readonly ILogger logger = LogManager.GetLogger();
 
         public LaunchGameUriHandler(LaunchGameUriHandlerArgs args)
         {
             PlayniteApi = args.PlayniteAPI;
-            gameStateTracker = args.gameStateTracker;
         }
 
         public void Register(string path)
@@ -58,15 +54,7 @@ namespace SteamRomManagerCompanion.Handlers
                     logger.Info($"installing game: {game.Name}");
                     PlayniteApi.InstallGame(guid);
                 }
-
-                logger.Info($"game initialised, marking as started: {guid}");
-                gameStateTracker.Start(guid);
             });
-        }
-
-        public void Unregister(string path)
-        {
-            PlayniteApi.UriHandler.RemoveSource(path);
         }
 
         private Guid? ParseGameIdFromEventArgs(string id)

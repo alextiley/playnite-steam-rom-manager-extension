@@ -1,15 +1,14 @@
 ﻿using Newtonsoft.Json;
-using SteamRomManagerCompanion.Interfaces;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 
-namespace SteamRomManagerCompanion.Controllers
+namespace SteamRomManagerCompanion
 {
-    internal class FileSystemController : IFileSystemController
+    internal class FileSystemHelper
     {
-        public void EmptyDirectory(string path)
+        public void DeleteDirectoryContents(string path)
         {
             try
             {
