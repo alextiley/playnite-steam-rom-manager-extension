@@ -186,8 +186,7 @@ namespace SteamRomManagerCompanion
             steamRomManager.WriteUserSettings(userSettings);
 
             // If Steam is running, we need to shut it down as we're about to write to it's .vdf files.
-            var steamWasRunning = steamHelper.IsRunning();
-            if (steamWasRunning)
+            if (steamHelper.IsRunning())
             {
                 logger.Info("steam process already running, ending the process in preparation for library import");
                 steamHelper.Stop();
