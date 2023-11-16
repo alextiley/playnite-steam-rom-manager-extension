@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 
 namespace SteamRomManagerCompanion
 {
@@ -40,7 +39,7 @@ namespace SteamRomManagerCompanion
         public void WriteFile(string path, string contents)
         {
             CreateDirectory(Path.GetDirectoryName(path));
-            File.WriteAllText(path, contents, Encoding.UTF8);
+            File.WriteAllText(path, contents);
         }
 
         public void WriteJson(string path, object json, Formatting format = Formatting.None)

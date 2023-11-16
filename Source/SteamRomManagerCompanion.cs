@@ -18,11 +18,12 @@ namespace SteamRomManagerCompanion
         private static readonly ILogger logger = LogManager.GetLogger();
 
         private readonly string binariesDataDir;
-        private readonly string librariesDataDir;
+        private readonly string manifestsDataDir;
 
         private readonly SteamHelper steamHelper;
         private readonly SteamRomManagerHelper steamRomManager;
         private readonly PlayniteHelper playniteHelper;
+        private readonly PlayniteGameHelper playniteGameHelper;
         private readonly LaunchGameUriHandler uriHandler;
         private readonly FilesystemHelper filesystemHelper;
 
@@ -33,18 +34,22 @@ namespace SteamRomManagerCompanion
         public SteamRomManagerCompanion(IPlayniteAPI api) : base(api)
         {
             binariesDataDir = Path.Combine(GetPluginUserDataPath(), "binaries");
-            librariesDataDir = Path.Combine(GetPluginUserDataPath(), "libraries");
+            manifestsDataDir = Path.Combine(GetPluginUserDataPath(), "manifests");
 
             steamHelper = new SteamHelper();
             playniteHelper = new PlayniteHelper();
             filesystemHelper = new FilesystemHelper();
             settings = new SteamRomManagerCompanionSettingsViewModel(this);
 
+            playniteGameHelper = new PlayniteGameHelper(
+                new PlayniteGameHelperArgs { api = api }
+            );
+
             steamRomManager = new SteamRomManagerHelper(
                 new SteamRomManagerHelperArgs
                 {
                     BinariesDataDir = binariesDataDir,
-                    LibrariesDataDir = librariesDataDir,
+                    ManifestsDataDir = manifestsDataDir,
                     BinaryDestinationFilename = "steam-rom-manager.exe",
                     BinarySourceUri = "https://github.com/SteamGridDB/steam-rom-manager/releases/download/v2.4.17/Steam-ROM-Manager-portable-2.4.17.exe",
                     FileSystemHelper = filesystemHelper,
@@ -83,7 +88,8 @@ namespace SteamRomManagerCompanion
             uriHandler.Register(uriHandlerToRegister);
 
             // Fetch Steam Rom Manager and store in the binaries directory.
-            _ = await steamRomManager.DownloadBinary();
+            // We do this on start-up to optimise run time during library refresh.
+            _ = await steamRomManager.Initialise();
         }
 
         public override void OnGameInstalled(OnGameInstalledEventArgs args)
@@ -117,8 +123,8 @@ namespace SteamRomManagerCompanion
             // Fetch Steam Rom Manager if it failed to download on start-up.
             if (!steamRomManager.IsBinaryDownloaded())
             {
-                logger.Warn("steam rom manager not available, attempting to re-download");
-                if (!await steamRomManager.DownloadBinary())
+                logger.Warn("steam rom manager not installed, downloading");
+                if (!await steamRomManager.Initialise())
                 {
                     PlayniteApi.Notifications.Add(
                         new NotificationMessage("srm_error", "Your library could not be synced with Steam: unable to download Steam Rom Manager.", NotificationType.Error)
@@ -128,40 +134,42 @@ namespace SteamRomManagerCompanion
                 }
             }
 
-            // Get all visible games.
-            var allGames = PlayniteApi.Database.Games;
-            var games = allGames.Where((g) => !g.Hidden);
-            var plugins = PlayniteApi.Addons.Plugins;
-            var playniteInstallDir = playniteHelper.GetInstallPath();
+            // Get all visible "non Steam" games.
+            var nonSteamGames = PlayniteApi.Database.Games
+                .Where((g) => !g.Hidden)
+                .Where(g => !playniteGameHelper.GetLibraryPlugin(g).Name.ToLower().Contains("steam"));
 
-            logger.Info($"{games.Count()} games found. grouping by library into steam rom manager manifest format");
+            logger.Info($"{nonSteamGames.Count()} games found. grouping by library into steam rom manager manifest format");
+
+            // Grab the Playnite "Start in" path once before mapping.
+            var playniteInstallDir = playniteHelper.GetInstallPath();
 
             // Group the games into their respective libraries.
             var libraryManifestPairs = steamRomManager.CreateLibraryManifestDict(
                 new CreateLibraryManifestDictionaryArgs
                 {
-                    Games = games,
-                    LibraryPluginFilterFn = (g) => (LibraryPlugin)plugins.Find((p) => p.Id == g.PluginId),
+                    Games = nonSteamGames,
+                    GroupBySelectorFunc = (g) => playniteGameHelper.GetLibraryPlugin(g),
                     StartIn = playniteInstallDir,
                     Target = $"playnite://{uriHandlerToRegister}/{{id}}",
                 });
 
-            logger.Info($"cleaning data directory: {librariesDataDir}");
+            logger.Info($"cleaning data directory: {manifestsDataDir}");
 
-            // Clear manifests from previous library updates / ensure directory exists.
-            filesystemHelper.CreateDirectory(librariesDataDir);
-            filesystemHelper.DeleteDirectoryContents(librariesDataDir);
+            // Ensure the manifests directory exists and clear any existing files from previous library updates.
+            filesystemHelper.CreateDirectory(manifestsDataDir);
+            filesystemHelper.DeleteDirectoryContents(manifestsDataDir);
 
             logger.Info($"writing manifests for {libraryManifestPairs.Count()} libraries");
 
             // Write manifests for each library.
             _ = Parallel.ForEach(libraryManifestPairs, (pair) =>
             {
-                var library = pair.Key;
-                var manifest = pair.Value;
-                var path = Path.Combine(librariesDataDir, library.Name, "manifest.json");
+                var libraryPlugin = pair.Key;
+                var manifestJson = pair.Value;
+                var path = Path.Combine(manifestsDataDir, libraryPlugin.Name, "manifest.json");
 
-                filesystemHelper.WriteJson(path, manifest);
+                filesystemHelper.WriteJson(path, manifestJson);
 
                 logger.Info($"manifest.json file written to: {path}");
             });
@@ -169,21 +177,13 @@ namespace SteamRomManagerCompanion
             logger.Info("generating steam rom manager parser configurations and settings");
 
             // Generate Steam Rom Manager parser configurations for each library.
-            // Skip Steam, we don't need non-steam shortcuts for those!
-            var userConfigurations = steamRomManager.CreateUserConfigurations(
-                libraryManifestPairs
-                    .Select((pair) => pair.Key)
-                    .SkipWhile(x => x.Name.ToLower().Contains("steam"))
-            );
+            var libraryPlugins = libraryManifestPairs.Select((pair) => pair.Key);
+            var userConfigurations = steamRomManager.CreateUserConfigurations(libraryPlugins);
 
-            // Now generate the global settings config.
-            var userSettings = steamRomManager.CreateUserSettings();
-
-            logger.Info("writing steam rom manager parser configurations and settings");
+            logger.Info("writing steam rom manager parser configurations");
 
             // Write them to Steam Rom Manager's config directory.
             steamRomManager.WriteUserConfigurations(userConfigurations);
-            steamRomManager.WriteUserSettings(userSettings);
 
             // If Steam is running, we need to shut it down as we're about to write to it's .vdf files.
             if (steamHelper.IsRunning())

@@ -89,6 +89,9 @@ namespace SteamRomManagerCompanion
         [JsonProperty("executableModifier")] public string ExecutableModifier { get; set; }
         [JsonProperty("startInDirectory")] public string StartInDirectory { get; set; }
         [JsonProperty("titleModifier")] public string TitleModifier { get; set; }
+        // TODO Verify that these are in fact strings.
+        [JsonProperty("fetchControllerTemplatesButton")] public string FetchControllerTemplatesButton { get; set; }
+        [JsonProperty("removeControllersButton")] public string RemoveControllersButton { get; set; }
         [JsonProperty("imageProviders")] public string[] ImageProviders { get; set; }
         [JsonProperty("onlineImageQueries")] public string OnlineImageQueries { get; set; }
         [JsonProperty("imagePool")] public string ImagePool { get; set; }
@@ -102,6 +105,7 @@ namespace SteamRomManagerCompanion
         [JsonProperty("defaultImage")] public Image DefaultImage { get; set; }
         [JsonProperty("localImages")] public Image LocalImages { get; set; }
         [JsonProperty("version")] public long Version { get; set; }
+        [JsonProperty("disabled")] public bool Disabled { get; set; }
         [JsonProperty("parserId")] public string ParserId { get; set; }
     }
 }

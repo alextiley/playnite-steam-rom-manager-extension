@@ -1,5 +1,4 @@
-﻿using Newtonsoft.Json;
-using Playnite.SDK;
+﻿using Playnite.SDK;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using System;
@@ -12,7 +11,7 @@ using Path = System.IO.Path;
 
 namespace SteamRomManagerCompanion
 {
-    public delegate LibraryPlugin LibraryPluginFilterFn(Game game);
+    public delegate LibraryPlugin GroupBySelectorFunc(Game game);
 
     public class CreateLibraryManifestDictionaryArgs
     {
@@ -20,13 +19,13 @@ namespace SteamRomManagerCompanion
         public string LaunchOptions { get; set; }
         public string StartIn { get; set; }
         public string Target { get; set; }
-        public LibraryPluginFilterFn LibraryPluginFilterFn { get; set; }
+        public GroupBySelectorFunc GroupBySelectorFunc { get; set; }
     }
 
     internal class SteamRomManagerHelperArgs
     {
         public string BinariesDataDir { get; set; }
-        public string LibrariesDataDir { get; set; }
+        public string ManifestsDataDir { get; set; }
         public string PlayniteInstallDir { get; set; }
         public string SteamInstallDir { get; set; }
         public string SteamActiveUsername { get; set; }
@@ -41,7 +40,7 @@ namespace SteamRomManagerCompanion
 
         private readonly string binarySourceUri;
         private readonly string binariesDir;
-        private readonly string librariesDir;
+        private readonly string manifestsDir;
         private readonly string binaryPath;
         private readonly string steamActiveUsername;
         private readonly string steamInstallDir;
@@ -55,7 +54,7 @@ namespace SteamRomManagerCompanion
         {
             binarySourceUri = args.BinarySourceUri;
             binariesDir = args.BinariesDataDir;
-            librariesDir = args.LibrariesDataDir;
+            manifestsDir = args.ManifestsDataDir;
             steamInstallDir = args.SteamInstallDir;
             playniteInstallDir = args.PlayniteInstallDir;
             binaryPath = Path.Combine(args.BinariesDataDir, args.BinaryDestinationFilename);
@@ -73,33 +72,20 @@ namespace SteamRomManagerCompanion
             //
         }
 
-        public async Task<bool> DownloadBinary(bool force = false)
+        public async Task<bool> Initialise()
         {
-            logger.Info($"attempting to download steam rom manager binary from {binarySourceUri}");
-
-            if (IsBinaryDownloaded() && !force)
+            if (!await DownloadBinary())
             {
-                logger.Info($"install skipped, steam rom manager already exists at {binaryPath}");
-                return true;
-            }
-            var client = new HttpClient();
-            try
-            {
-                fileSystemHelper.WriteBinary(binaryPath, await client.GetByteArrayAsync(binarySourceUri));
-                logger.Info($"install succeeded, steam rom manager ready at {binaryPath}");
-                return true;
-            }
-            catch (Exception ex)
-            {
-                logger.Error(ex, "error, unable to download steam rom manager");
                 return false;
             }
+            WriteUserSettings(CreateUserSettings());
+            return true;
         }
 
         public Dictionary<LibraryPlugin, List<SteamRomManagerManifestEntry>> CreateLibraryManifestDict(CreateLibraryManifestDictionaryArgs args)
         {
             var grouped = args.Games.GroupBy(
-                game => args.LibraryPluginFilterFn(game)
+                game => args.GroupBySelectorFunc(game)
             );
 
             return grouped.ToDictionary(
@@ -155,21 +141,23 @@ namespace SteamRomManagerCompanion
             };
         }
 
-        public IEnumerable<SteamRomManagerParserConfig> CreateUserConfigurations(IEnumerable<LibraryPlugin> libraries)
+        public IEnumerable<SteamRomManagerParserConfig> CreateUserConfigurations(IEnumerable<LibraryPlugin> plugins)
         {
-            return libraries.Select(library =>
+            return plugins.Select(plugin =>
             {
                 return new SteamRomManagerParserConfig
                 {
                     ParserType = "Manual",
-                    ConfigTitle = $"Playnite - {library.Name}",
-                    SteamDirectory = steamInstallDir,
-                    SteamCategory = $"${{{library.Name}}}",
+                    ConfigTitle = $"Playnite - {plugin.Name}",
+                    SteamDirectory = "${steamDirGlobal}",
+                    SteamCategory = $"${{{plugin.Name}}}",
                     RomDirectory = "",
                     ExecutableArgs = "",
                     ExecutableModifier = "\"${exePath}\"",
                     StartInDirectory = "",
                     TitleModifier = "${fuzzyTitle}",
+                    FetchControllerTemplatesButton = null,
+                    RemoveControllersButton = null,
                     ImageProviders = new[] { "SteamGridDB" },
                     OnlineImageQueries = "${${fuzzyTitle}}",
                     ImagePool = "${fuzzyTitle}",
@@ -179,13 +167,13 @@ namespace SteamRomManagerCompanion
                     },
                     Executable = new Executable
                     {
-                        AppendArgsToExecutable = true,
+                        Path = "",
                         ShortcutPassthrough = false,
-                        Path = ""
+                        AppendArgsToExecutable = true,
                     },
                     ParserInputs = new ParserInputs
                     {
-                        ManualManifests = Path.Combine(librariesDir, library.Name)
+                        ManualManifests = Path.Combine(manifestsDir, plugin.Name)
                     },
                     TitleFromVariable = new TitleFromVariable
                     {
@@ -233,6 +221,10 @@ namespace SteamRomManagerCompanion
                         Icon = null,
                     },
                     LocalImages = new Image
+                    // TODO Store manifests in directories by GAME_ID, e.g. 
+                    // Then link to images in the library\files\GAME_ID directory
+                    // Then we can reference ${fileDir} in this config to tell SRM to get images from 
+                    // e.g. C:\Users\foo\AppData\Local\Playnite\ExtensionsData\5fe1d136-a9dc-44d7-80d2-43c02df6e546\libraries\Battle.net\GAME_ID\poster.jpg
                     {
                         Tall = null,
                         Long = null,
@@ -241,6 +233,7 @@ namespace SteamRomManagerCompanion
                         Icon = null,
                     },
                     ParserId = "169969737256374566",
+                    Disabled = false,
                     Version = 15
                 };
             });
@@ -259,7 +252,30 @@ namespace SteamRomManagerCompanion
         private void WriteJsonToConfigDir(string filename, object contents)
         {
             var path = Path.Combine(binariesDir, configDirectory, filename);
-            fileSystemHelper.WriteJson(path, contents, Formatting.Indented);
+            fileSystemHelper.WriteJson(path, contents);
+        }
+
+        private async Task<bool> DownloadBinary(bool force = false)
+        {
+            logger.Info($"attempting to download steam rom manager binary from {binarySourceUri}");
+
+            if (IsBinaryDownloaded() && !force)
+            {
+                logger.Info($"install skipped, steam rom manager already exists at {binaryPath}");
+                return true;
+            }
+            var client = new HttpClient();
+            try
+            {
+                fileSystemHelper.WriteBinary(binaryPath, await client.GetByteArrayAsync(binarySourceUri));
+                logger.Info($"install succeeded, steam rom manager ready at {binaryPath}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex, "error, unable to download steam rom manager");
+                return false;
+            }
         }
     }
 }
