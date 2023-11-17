@@ -15,11 +15,6 @@ namespace SteamRomManagerCompanion
             return Path.GetDirectoryName(GetExecutablePath());
         }
 
-        //public string GetAssetsPath()
-        //{
-        //    return Path.Combine(GetInstallPath(), "library", "files");
-        //}
-
         public void Restart(string flags)
         {
             var currentProcess = Process.GetCurrentProcess();

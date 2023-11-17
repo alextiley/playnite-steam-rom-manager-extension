@@ -232,27 +232,6 @@ namespace SteamRomManagerCompanion
             });
         }
 
-        //public Dictionary<string, Dictionary<string, string>> CreateCustomVariables(IEnumerable<Game> games)
-        //{
-        //    var assets = new Dictionary<string, string>();
-
-        //    foreach (var game in games)
-        //    {
-        //        assets[$"portrait-{game.Id}"] = Path.GetFileNameWithoutExtension(game.CoverImage);
-        //        assets[$"hero-{game.Id}"] = Path.GetFileNameWithoutExtension(game.BackgroundImage);
-        //        assets[$"icon-{game.Id}"] = Path.GetFileNameWithoutExtension(game.Icon);
-        //    }
-
-        //    var filtered = assets
-        //        .Where(pair => !string.IsNullOrEmpty(pair.Value))
-        //        .ToDictionary(pair => pair.Key, pair => pair.Value);
-
-        //    return new Dictionary<string, Dictionary<string, string>>
-        //    {
-        //        { "PLAYNITE", filtered }
-        //    };
-        //}
-
         public void WriteUserConfigurations(IEnumerable<SteamRomManagerParserConfig> configs)
         {
             WriteJsonToConfigDir("userConfigurations.json", configs);
@@ -262,11 +241,6 @@ namespace SteamRomManagerCompanion
         {
             WriteJsonToConfigDir("userSettings.json", config);
         }
-
-        //public void WriteCustomVariables(Dictionary<string, Dictionary<string, string>> customVariables)
-        //{
-        //    WriteJsonToConfigDir("customVariables.json", customVariables);
-        //}
 
         private void WriteJsonToConfigDir(string filename, object contents)
         {
@@ -296,28 +270,5 @@ namespace SteamRomManagerCompanion
                 return false;
             }
         }
-
-        //private string CreateAssetPath(string type)
-        //{
-        //    // `${fileName}` is a Steam Rom Manager template variable.
-        //    // This will be replaced by SRM with the manifest's filename (the game ID).
-        //    //
-        //    // e.g. library/files/1111-1111-1111-1111
-        //    //
-        //    // `${{{type}-${{fileName}}}}.*` will embed a custom variable, which SRM will replace.
-        //    // These custom variables are generated after manifests have been written.
-        //    //
-        //    // e.g. library/files/1111-1111-1111-1111/${1111-1111-1111-1111}.*
-        //    //
-        //    // ...which becomes: library/files/1111-1111-1111-1111/poster-0000-0000-0000.*
-        //    //
-        //    // cv:PLAYNIGHT|
-        //    return Path
-        //        .Combine(assetsDir, "%GameDirectoryVar%", "%AssetFilenameVar%")
-        //        .Replace("%GameDirectoryVar%", "${fileName}")
-        //        .Replace("%AssetFilenameVar%", @"${cv|" + type + "-${fileName}}.*")
-        //        .Replace("/", "${/}")
-        //        .Replace("\\", "${/}");
-        //}
     }
 }
