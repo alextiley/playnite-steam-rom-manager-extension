@@ -91,8 +91,8 @@ namespace SteamRomManagerCompanion
             );
             _ = enableProcess.Start();
 
-            // Wait no longer than 10 seconds
-            _ = await Task.WhenAny(enableProcessHandled.Task, Task.Delay(10 * 1000));
+            // Wait no longer than 60 seconds
+            _ = await Task.WhenAny(enableProcessHandled.Task, Task.Delay(60 * 1000));
 
             logger.Info("libraries enabled, adding games to steam");
 
