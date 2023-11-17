@@ -192,10 +192,16 @@ namespace SteamRomManagerCompanion
                 steamHelper.Stop();
             }
 
+            PlayniteApi.MainView.SwitchToLibraryView();
+
+            //_ = PlayniteApi.Dialogs.GetCurrentAppWindow().Activate();
+            //PlayniteApi.Dialogs.ActivateGlobalProgress(new GlobalProgressActionArgs {Text }, new GlobalProgressOptions { Cancelable = false });
+            _ = PlayniteApi.Dialogs.ShowMessage("Syncing library to Steam. This may take a few minutes. Please do not open Steam.");
+
             logger.Info("initialising library import");
 
             // Import the library of games.
-            steamRomManager.ImportLibrary();
+            _ = await steamRomManager.ImportLibrary();
 
             logger.Info("import completed");
 

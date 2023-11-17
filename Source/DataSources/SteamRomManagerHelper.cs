@@ -3,6 +3,7 @@ using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -40,6 +41,7 @@ namespace SteamRomManagerCompanion
         private readonly string binarySourceUri;
         private readonly string binariesDir;
         private readonly string manifestsDir;
+        private readonly string binaryFilename;
         private readonly string binaryPath;
         private readonly string steamActiveUsername;
         private readonly string steamInstallDir;
@@ -55,6 +57,7 @@ namespace SteamRomManagerCompanion
             manifestsDir = args.ManifestsDataDir;
             steamInstallDir = args.SteamInstallDir;
             binaryPath = Path.Combine(args.BinariesDataDir, args.BinaryDestinationFilename);
+            binaryFilename = args.BinaryDestinationFilename;
             steamActiveUsername = args.SteamActiveUsername;
             fileSystemHelper = args.FileSystemHelper;
         }
@@ -64,9 +67,55 @@ namespace SteamRomManagerCompanion
             return File.Exists(binaryPath);
         }
 
-        public void ImportLibrary()
+        public async Task<bool> ImportLibrary()
         {
-            //
+            if (!IsBinaryDownloaded())
+            {
+                logger.Error("unable to import library, Steam Rom Manager is not available");
+                return false;
+            }
+
+            logger.Info("enabling all libraries in steam rom manager");
+
+            var enableProcess = new Process();
+            var enableProcessHandled = new TaskCompletionSource<bool>();
+
+            enableProcess.StartInfo.FileName = binaryFilename;
+            enableProcess.StartInfo.Arguments = "enable --all";
+            enableProcess.StartInfo.WorkingDirectory = binariesDir;
+            enableProcess.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            enableProcess.StartInfo.CreateNoWindow = true;
+            enableProcess.EnableRaisingEvents = true;
+            enableProcess.Exited += new EventHandler(
+                (object sender, EventArgs e) => enableProcessHandled.TrySetResult(true)
+            );
+            _ = enableProcess.Start();
+
+            // Wait no longer than 10 seconds
+            _ = await Task.WhenAny(enableProcessHandled.Task, Task.Delay(10 * 1000));
+
+            logger.Info("libraries enabled, adding games to steam");
+
+            var addProcess = new Process();
+            var addProcessHandled = new TaskCompletionSource<bool>();
+
+            addProcess.StartInfo.FileName = binaryFilename;
+            addProcess.StartInfo.Arguments = "add";
+            addProcess.StartInfo.WorkingDirectory = binariesDir;
+            addProcess.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
+            addProcess.StartInfo.CreateNoWindow = true;
+            addProcess.EnableRaisingEvents = true;
+            addProcess.Exited += new EventHandler(
+                (object sender, EventArgs e) => addProcessHandled.TrySetResult(true)
+            );
+            _ = addProcess.Start();
+
+            // Wait no longer than 15 minutes
+            _ = await Task.WhenAny(addProcessHandled.Task, Task.Delay(60 * 1000 * 15));
+
+            logger.Info("games added successfully");
+
+            return true;
         }
 
         public async Task<bool> Initialise()
