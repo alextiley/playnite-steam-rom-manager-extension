@@ -26,7 +26,6 @@ namespace SteamRomManagerCompanion
     {
         public string BinariesDataDir { get; set; }
         public string ManifestsDataDir { get; set; }
-        public string PlayniteInstallDir { get; set; }
         public string SteamInstallDir { get; set; }
         public string SteamActiveUsername { get; set; }
         public string BinarySourceUri { get; set; }
@@ -44,7 +43,6 @@ namespace SteamRomManagerCompanion
         private readonly string binaryPath;
         private readonly string steamActiveUsername;
         private readonly string steamInstallDir;
-        private readonly string playniteInstallDir;
 
         private readonly FilesystemHelper fileSystemHelper;
 
@@ -56,7 +54,6 @@ namespace SteamRomManagerCompanion
             binariesDir = args.BinariesDataDir;
             manifestsDir = args.ManifestsDataDir;
             steamInstallDir = args.SteamInstallDir;
-            playniteInstallDir = args.PlayniteInstallDir;
             binaryPath = Path.Combine(args.BinariesDataDir, args.BinaryDestinationFilename);
             steamActiveUsername = args.SteamActiveUsername;
             fileSystemHelper = args.FileSystemHelper;
@@ -82,26 +79,26 @@ namespace SteamRomManagerCompanion
             return true;
         }
 
-        public Dictionary<LibraryPlugin, List<SteamRomManagerManifestEntry>> CreateLibraryManifestDict(CreateLibraryManifestDictionaryArgs args)
+        public Dictionary<string, List<SteamRomManagerManifestEntry>> CreateLibraryManifestDict(CreateLibraryManifestDictionaryArgs args)
         {
-            var grouped = args.Games.GroupBy(
-                game => args.GroupBySelectorFunc(game)
-            );
-
-            return grouped.ToDictionary(
-                group => group.Key,
-                group => group.Select(
-                    game => new SteamRomManagerManifestEntry(
-                        new SteamRomManagerManifestEntryArgs
-                        {
-                            LaunchOptions = args.LaunchOptions ?? "",
-                            StartIn = args.StartIn,
-                            Target = args.Target.Replace("{id}", game.Id.ToString()),
-                            Title = game.Name
-                        }
-                    )
-                ).ToList()
-            );
+            return args.Games
+                .GroupBy(
+                    game => args.GroupBySelectorFunc(game)
+                )
+                .ToDictionary(
+                    group => group.Key.Name,
+                    group => group.Select(
+                        game => new SteamRomManagerManifestEntry(
+                            new SteamRomManagerManifestEntryArgs
+                            {
+                                LaunchOptions = args.LaunchOptions ?? "",
+                                StartIn = args.StartIn,
+                                Target = args.Target.Replace("{id}", $"{game.Id}"),
+                                Title = game.Name
+                            }
+                        )
+                    ).ToList()
+                );
         }
 
         public SteamRomManagerUserSettings CreateUserSettings()
@@ -118,7 +115,7 @@ namespace SteamRomManagerCompanion
                 {
                     SteamDirectory = steamInstallDir,
                     UserAccounts = $"${{{steamActiveUsername}}}",
-                    LocalImagesDirectory = Path.Combine(playniteInstallDir, "library", "files"),
+                    LocalImagesDirectory = "",
                     RomsDirectory = "",
                     RetroarchPath = "",
                     RaCoresDirectory = "",
@@ -127,7 +124,7 @@ namespace SteamRomManagerCompanion
                 {
                     RetrieveCurrentSteamImages = true,
                     DeleteDisabledShortcuts = true,
-                    ImageZoomPercentage = 40,
+                    ImageZoomPercentage = 30,
                     Preload = false,
                 },
                 EnabledProviders = new[] { "SteamGridDB" },
@@ -141,16 +138,16 @@ namespace SteamRomManagerCompanion
             };
         }
 
-        public IEnumerable<SteamRomManagerParserConfig> CreateUserConfigurations(IEnumerable<LibraryPlugin> plugins)
+        public IEnumerable<SteamRomManagerParserConfig> CreateUserConfigurations(string[] libraryNames)
         {
-            return plugins.Select(plugin =>
+            return libraryNames.Select((libraryName, i) =>
             {
                 return new SteamRomManagerParserConfig
                 {
                     ParserType = "Manual",
-                    ConfigTitle = $"Playnite - {plugin.Name}",
+                    ConfigTitle = $"Playnite - {libraryName}",
                     SteamDirectory = "${steamDirGlobal}",
-                    SteamCategory = $"${{{plugin.Name}}}",
+                    SteamCategory = $"${{{libraryName}}}",
                     RomDirectory = "",
                     ExecutableArgs = "",
                     ExecutableModifier = "\"${exePath}\"",
@@ -163,7 +160,7 @@ namespace SteamRomManagerCompanion
                     ImagePool = "${fuzzyTitle}",
                     UserAccounts = new UserAccounts
                     {
-                        SpecifiedAccounts = $"${{{steamActiveUsername}}}",
+                        SpecifiedAccounts = $"${{${{accountsglobal}}}}",
                     },
                     Executable = new Executable
                     {
@@ -173,7 +170,7 @@ namespace SteamRomManagerCompanion
                     },
                     ParserInputs = new ParserInputs
                     {
-                        ManualManifests = Path.Combine(manifestsDir, plugin.Name)
+                        ManualManifests = Path.Combine(manifestsDir, libraryName)
                     },
                     TitleFromVariable = new TitleFromVariable
                     {
@@ -221,10 +218,6 @@ namespace SteamRomManagerCompanion
                         Icon = null,
                     },
                     LocalImages = new Image
-                    // TODO Store manifests in directories by GAME_ID, e.g. 
-                    // Then link to images in the library\files\GAME_ID directory
-                    // Then we can reference ${fileDir} in this config to tell SRM to get images from 
-                    // e.g. C:\Users\foo\AppData\Local\Playnite\ExtensionsData\5fe1d136-a9dc-44d7-80d2-43c02df6e546\libraries\Battle.net\GAME_ID\poster.jpg
                     {
                         Tall = null,
                         Long = null,
@@ -232,12 +225,33 @@ namespace SteamRomManagerCompanion
                         Logo = null,
                         Icon = null,
                     },
-                    ParserId = "169969737256374566",
+                    ParserId = $"GeneratedByPlayniteSteamRomManagerCompanion_{i}",
                     Disabled = false,
                     Version = 15
                 };
             });
         }
+
+        //public Dictionary<string, Dictionary<string, string>> CreateCustomVariables(IEnumerable<Game> games)
+        //{
+        //    var assets = new Dictionary<string, string>();
+
+        //    foreach (var game in games)
+        //    {
+        //        assets[$"portrait-{game.Id}"] = Path.GetFileNameWithoutExtension(game.CoverImage);
+        //        assets[$"hero-{game.Id}"] = Path.GetFileNameWithoutExtension(game.BackgroundImage);
+        //        assets[$"icon-{game.Id}"] = Path.GetFileNameWithoutExtension(game.Icon);
+        //    }
+
+        //    var filtered = assets
+        //        .Where(pair => !string.IsNullOrEmpty(pair.Value))
+        //        .ToDictionary(pair => pair.Key, pair => pair.Value);
+
+        //    return new Dictionary<string, Dictionary<string, string>>
+        //    {
+        //        { "PLAYNITE", filtered }
+        //    };
+        //}
 
         public void WriteUserConfigurations(IEnumerable<SteamRomManagerParserConfig> configs)
         {
@@ -248,6 +262,11 @@ namespace SteamRomManagerCompanion
         {
             WriteJsonToConfigDir("userSettings.json", config);
         }
+
+        //public void WriteCustomVariables(Dictionary<string, Dictionary<string, string>> customVariables)
+        //{
+        //    WriteJsonToConfigDir("customVariables.json", customVariables);
+        //}
 
         private void WriteJsonToConfigDir(string filename, object contents)
         {
@@ -277,6 +296,28 @@ namespace SteamRomManagerCompanion
                 return false;
             }
         }
+
+        //private string CreateAssetPath(string type)
+        //{
+        //    // `${fileName}` is a Steam Rom Manager template variable.
+        //    // This will be replaced by SRM with the manifest's filename (the game ID).
+        //    //
+        //    // e.g. library/files/1111-1111-1111-1111
+        //    //
+        //    // `${{{type}-${{fileName}}}}.*` will embed a custom variable, which SRM will replace.
+        //    // These custom variables are generated after manifests have been written.
+        //    //
+        //    // e.g. library/files/1111-1111-1111-1111/${1111-1111-1111-1111}.*
+        //    //
+        //    // ...which becomes: library/files/1111-1111-1111-1111/poster-0000-0000-0000.*
+        //    //
+        //    // cv:PLAYNIGHT|
+        //    return Path
+        //        .Combine(assetsDir, "%GameDirectoryVar%", "%AssetFilenameVar%")
+        //        .Replace("%GameDirectoryVar%", "${fileName}")
+        //        .Replace("%AssetFilenameVar%", @"${cv|" + type + "-${fileName}}.*")
+        //        .Replace("/", "${/}")
+        //        .Replace("\\", "${/}");
+        //}
     }
 }
-

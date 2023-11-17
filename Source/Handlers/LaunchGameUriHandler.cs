@@ -30,6 +30,12 @@ namespace SteamRomManagerCompanion
                 logger.Info($"handler 'playnite://{path}/.*' invoked");
 
                 var id = args.Arguments[0];
+                if (id == null)
+                {
+                    logger.Error("no argument provided to handler, exiting");
+                    return;
+                }
+
                 var parsedGuid = ParseGameIdFromEventArgs(id);
                 if (parsedGuid == null)
                 {

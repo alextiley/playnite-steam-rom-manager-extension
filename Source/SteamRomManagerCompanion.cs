@@ -2,8 +2,8 @@
 using Playnite.SDK.Events;
 using Playnite.SDK.Plugins;
 using System;
+using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows.Controls;
 using Path = System.IO.Path;
 
@@ -27,23 +27,24 @@ namespace SteamRomManagerCompanion
         private readonly LaunchGameUriHandler uriHandler;
         private readonly FilesystemHelper filesystemHelper;
 
-        private SteamRomManagerCompanionSettingsViewModel settings { get; set; }
+        private SteamRomManagerCompanionSettingsViewModel Settings { get; set; }
 
         public override Guid Id { get; } = Guid.Parse("5fe1d136-a9dc-44d7-80d2-43c02df6e546");
 
         public SteamRomManagerCompanion(IPlayniteAPI api) : base(api)
         {
-            binariesDataDir = Path.Combine(GetPluginUserDataPath(), "binaries");
-            manifestsDataDir = Path.Combine(GetPluginUserDataPath(), "manifests");
-
             steamHelper = new SteamHelper();
             playniteHelper = new PlayniteHelper();
             filesystemHelper = new FilesystemHelper();
-            settings = new SteamRomManagerCompanionSettingsViewModel(this);
+
+            Settings = new SteamRomManagerCompanionSettingsViewModel(this);
 
             playniteGameHelper = new PlayniteGameHelper(
                 new PlayniteGameHelperArgs { api = api }
             );
+
+            binariesDataDir = Path.Combine(GetPluginUserDataPath(), "binaries");
+            manifestsDataDir = Path.Combine(GetPluginUserDataPath(), "manifests");
 
             steamRomManager = new SteamRomManagerHelper(
                 new SteamRomManagerHelperArgs
@@ -54,7 +55,6 @@ namespace SteamRomManagerCompanion
                     BinarySourceUri = "https://github.com/SteamGridDB/steam-rom-manager/releases/download/v2.4.17/Steam-ROM-Manager-portable-2.4.17.exe",
                     FileSystemHelper = filesystemHelper,
                     SteamInstallDir = steamHelper.GetInstallPath(),
-                    PlayniteInstallDir = playniteHelper.GetInstallPath(),
                     SteamActiveUsername = steamHelper.GetActiveSteamUsername()
                 }
             );
@@ -145,7 +145,7 @@ namespace SteamRomManagerCompanion
             var playniteInstallDir = playniteHelper.GetInstallPath();
 
             // Group the games into their respective libraries.
-            var libraryManifestPairs = steamRomManager.CreateLibraryManifestDict(
+            var manifestsByLibrary = steamRomManager.CreateLibraryManifestDict(
                 new CreateLibraryManifestDictionaryArgs
                 {
                     Games = nonSteamGames,
@@ -160,14 +160,14 @@ namespace SteamRomManagerCompanion
             filesystemHelper.CreateDirectory(manifestsDataDir);
             filesystemHelper.DeleteDirectoryContents(manifestsDataDir);
 
-            logger.Info($"writing manifests for {libraryManifestPairs.Count()} libraries");
+            logger.Info($"writing manifests for {manifestsByLibrary.Count()} libraries");
 
             // Write manifests for each library.
-            _ = Parallel.ForEach(libraryManifestPairs, (pair) =>
+            manifestsByLibrary.ForEach((manifestByLibraryPair) =>
             {
-                var libraryPlugin = pair.Key;
-                var manifestJson = pair.Value;
-                var path = Path.Combine(manifestsDataDir, libraryPlugin.Name, "manifest.json");
+                var libraryName = manifestByLibraryPair.Key;
+                var manifestJson = manifestByLibraryPair.Value;
+                var path = Path.Combine(manifestsDataDir, libraryName, "manifest.json");
 
                 filesystemHelper.WriteJson(path, manifestJson);
 
@@ -177,8 +177,8 @@ namespace SteamRomManagerCompanion
             logger.Info("generating steam rom manager parser configurations and settings");
 
             // Generate Steam Rom Manager parser configurations for each library.
-            var libraryPlugins = libraryManifestPairs.Select((pair) => pair.Key);
-            var userConfigurations = steamRomManager.CreateUserConfigurations(libraryPlugins);
+            var libraryPluginNames = manifestsByLibrary.Select((pair) => pair.Key).ToArray();
+            var userConfigurations = steamRomManager.CreateUserConfigurations(libraryPluginNames);
 
             logger.Info("writing steam rom manager parser configurations");
 
@@ -207,7 +207,7 @@ namespace SteamRomManagerCompanion
 
         public override ISettings GetSettings(bool firstRunSettings)
         {
-            return settings;
+            return Settings;
         }
 
         public override UserControl GetSettingsView(bool firstRunSettings)
