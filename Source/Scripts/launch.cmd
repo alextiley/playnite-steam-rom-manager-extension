@@ -63,7 +63,7 @@ if "%~1" == "" (
     exit /b 1
 )
 
-if "%~3" == "dry-run" (
+if "%~2" == "dry-run" (
     set "IsDryRun=1"
 	echo Dry run mode enabled. No actions will be performed.
 ) else (
@@ -79,7 +79,7 @@ set "PlayniteDesktopProcess=Playnite.DesktopApp.exe"
 set "PlayniteFullscreenProcess=Playnite.FullscreenApp.exe"
 set "PlayniteLaunchPath=%PlayniteDirectory%\%PlayniteDesktopProcess%"
 set "PlayniteLaunchFlags=--hidesplashscreen --startclosedtotray --nolibupdate"
-set "GameStateFileToMonitor=%PlayniteDirectory%\ExtensionData\%ExtensionId%\state\%GameId%"
+set "GameStateFileToMonitor=%PlayniteDirectory%\ExtensionsData\%ExtensionId%\state\active_game\%GameId%"
 
 echo Validating working directory...
 
@@ -151,23 +151,12 @@ echo Game state file is %GameStateFileToMonitor%.
 echo Monitoring game state file and waiting for it's removal...
 
 :MonitorGameSession
+timeout /t 5 >nul
 if exist "%GameStateFileToMonitor%" (
-    timeout /t 5 >nul
+    echo Game state file found, game is running.
     goto :MonitorGameSession
-)
-
-echo Game session has ended.
-
-:: ---------------------------------------------------------------------------------
-::   Clean up and kill the Playnite process if it was started by this script
-:: ---------------------------------------------------------------------------------
-::
-:: TODO consider if we really need to do this.
-::
-if "%PlayniteStartedByScript%" equ "1" if "%IsDryRun%" equ "0" (
-    echo Exiting Playnite process.
-	taskkill /f /im "%PlayniteDesktopProcess%" >nul
-    echo Playnite successfully exited.
+) else (
+    echo Game state file not found, game is not running.
 )
 
 :: ---------------------------------------------------------------------------------
