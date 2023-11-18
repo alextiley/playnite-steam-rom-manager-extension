@@ -100,13 +100,6 @@ namespace SteamRomManagerCompanion
             playniteHelper.DeleteGameActiveState();
         }
 
-        public override void OnGameStarted(OnGameStartedEventArgs args)
-        {
-            var pid = args.StartedProcessId;
-            _ = PlayniteApi.Dialogs.ShowMessage($"Process started: {pid}", "Process started");
-        }
-
-
         public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
         {
             logger.Info("library updated, attempting to sync Playnite library to Steam");
