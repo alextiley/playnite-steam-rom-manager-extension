@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 
 namespace SteamRomManagerCompanion
 {
@@ -78,6 +79,17 @@ namespace SteamRomManagerCompanion
         {
             CreateDirectory(Path.GetDirectoryName(path));
             File.WriteAllBytes(path, bytes);
+        }
+
+        public void WriteResourceToFile(string resourceName, string fileName)
+        {
+            using (var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName))
+            {
+                using (var file = new FileStream(fileName, FileMode.Create, FileAccess.Write))
+                {
+                    resource.CopyTo(file);
+                }
+            }
         }
     }
 }

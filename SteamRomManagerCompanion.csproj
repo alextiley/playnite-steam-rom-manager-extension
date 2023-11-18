@@ -72,7 +72,7 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="packages.config" />
-    <None Include="Source\Scripts\launch.cmd" />
+    <EmbeddedResource Include="Source\Scripts\launch.cmd" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Localization\*.xaml">

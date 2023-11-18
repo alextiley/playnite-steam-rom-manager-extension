@@ -68,6 +68,11 @@ namespace SteamRomManagerCompanion
          */
         public override async void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
+            // Copy our start script to the extension scripts directory.
+            var resourceName = "SteamRomManagerCompanion.Source.Scripts.launch.cmd";
+            var script = Path.Combine(filesystemHelper.scriptsDir, "launch.cmd");
+            filesystemHelper.WriteResourceToFile(resourceName, script);
+
             // Enable requests for starting or installing a game.
             uriHandler.Register(new RegisterArgs
             {
