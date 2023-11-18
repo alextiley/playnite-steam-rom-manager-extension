@@ -8,8 +8,13 @@ using System.Linq;
 using System.Windows.Controls;
 using Path = System.IO.Path;
 
-// TODO Handle Steam not being installed.
-// string EXE = Assembly.GetExecutingAssembly().GetName().Name;
+// TODO: Handle Steam not being installed.
+// TODO: Handle install aborts by checking processes - probably via known process names by library.
+// TODO: Might be able to get Playnite exe path with `Assembly.GetExecutingAssembly().GetName().Name`
+// TODO: Optimise library import handler by moving things to start up.
+// TODO: Improve UI behaviour when import is happening.
+// TODO: Look into dependency injection.
+// TODO: Tidy up everything in general, it's a mess!
 namespace SteamRomManagerCompanion
 {
     public class SteamRomManagerCompanion : GenericPlugin
@@ -28,7 +33,6 @@ namespace SteamRomManagerCompanion
 
         public SteamRomManagerCompanion(IPlayniteAPI api) : base(api)
         {
-
             steamHelper = new SteamHelper();
             uriHandler = new LaunchGameUriHandler(api);
 
@@ -100,8 +104,6 @@ namespace SteamRomManagerCompanion
             playniteHelper.DeleteGameActiveState();
         }
 
-        // TODO Check if this fires when an install stops.
-        // If not, we can code for this by checking if the running game is still installing periodically.
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
             playniteHelper.DeleteGameActiveState();

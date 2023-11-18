@@ -89,7 +89,6 @@ namespace SteamRomManagerCompanion
         [JsonProperty("executableModifier")] public string ExecutableModifier { get; set; }
         [JsonProperty("startInDirectory")] public string StartInDirectory { get; set; }
         [JsonProperty("titleModifier")] public string TitleModifier { get; set; }
-        // TODO Verify that these are in fact strings.
         [JsonProperty("fetchControllerTemplatesButton")] public string FetchControllerTemplatesButton { get; set; }
         [JsonProperty("removeControllersButton")] public string RemoveControllersButton { get; set; }
         [JsonProperty("imageProviders")] public string[] ImageProviders { get; set; }
