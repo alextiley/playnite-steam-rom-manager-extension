@@ -29,7 +29,7 @@ namespace SteamRomManagerCompanion
         public string SteamActiveUsername { get; set; }
         public string BinarySourceUri { get; set; }
         public string BinaryDestinationFilename { get; set; }
-        public FilesystemHelper FileSystemHelper { get; set; }
+        public FilesystemHelper FilesystemHelper { get; set; }
     }
 
     internal class SteamRomManagerHelper
@@ -42,18 +42,37 @@ namespace SteamRomManagerCompanion
         private readonly string steamActiveUsername;
         private readonly string steamInstallDir;
 
-        private readonly FilesystemHelper fileSystemHelper;
+        private readonly FilesystemHelper filesystemHelper;
 
         private static readonly ILogger logger = LogManager.GetLogger();
 
         public SteamRomManagerHelper(SteamRomManagerHelperArgs args)
         {
-            fileSystemHelper = args.FileSystemHelper;
+            filesystemHelper = args.FilesystemHelper;
             binarySourceUri = args.BinarySourceUri;
             steamInstallDir = args.SteamInstallDir;
-            binaryPath = Path.Combine(args.FileSystemHelper.binariesDataDir, args.BinaryDestinationFilename);
+            binaryPath = Path.Combine(args.FilesystemHelper.binariesDataDir, args.BinaryDestinationFilename);
             binaryFilename = args.BinaryDestinationFilename;
             steamActiveUsername = args.SteamActiveUsername;
+        }
+
+        public string GetCacheFilePath()
+        {
+            return Path.Combine(filesystemHelper.stateDataDir, "cache");
+        }
+
+        public void UpdateLibraryCache(string cacheValue)
+        {
+            filesystemHelper.WriteFile(GetCacheFilePath(), cacheValue);
+        }
+
+        public (bool isSyncRequired, string cacheValue) CheckLibrarySyncRequired(IEnumerable<Game> games)
+        {
+            var cacheFile = GetCacheFilePath();
+            var prev = filesystemHelper.ReadFile(cacheFile);
+            var next = string.Join(",", games.Select(x => x.Id).OrderBy(x => x));
+
+            return (isSyncRequired: prev != next, cacheValue: next);
         }
 
         public bool IsBinaryDownloaded()
@@ -61,14 +80,8 @@ namespace SteamRomManagerCompanion
             return File.Exists(binaryPath);
         }
 
-        public async Task<bool> ImportLibrary()
+        public async Task<bool> ConfigureSync()
         {
-            if (!IsBinaryDownloaded())
-            {
-                logger.Error("unable to import library, Steam Rom Manager is not available");
-                return false;
-            }
-
             logger.Info("enabling all libraries in steam rom manager");
 
             var enableProcess = new Process();
@@ -76,7 +89,7 @@ namespace SteamRomManagerCompanion
 
             enableProcess.StartInfo.FileName = binaryFilename;
             enableProcess.StartInfo.Arguments = "enable --all";
-            enableProcess.StartInfo.WorkingDirectory = fileSystemHelper.binariesDataDir;
+            enableProcess.StartInfo.WorkingDirectory = filesystemHelper.binariesDataDir;
             enableProcess.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
             enableProcess.StartInfo.CreateNoWindow = true;
             enableProcess.EnableRaisingEvents = true;
@@ -88,6 +101,13 @@ namespace SteamRomManagerCompanion
             // Wait no longer than 60 seconds
             _ = await Task.WhenAny(enableProcessHandled.Task, Task.Delay(60 * 1000));
 
+            logger.Info("libraries enabled in steam rom manager");
+
+            return true;
+        }
+
+        public async Task<bool> StartSync()
+        {
             logger.Info("libraries enabled, adding games to steam");
 
             var addProcess = new Process();
@@ -95,7 +115,7 @@ namespace SteamRomManagerCompanion
 
             addProcess.StartInfo.FileName = binaryFilename;
             addProcess.StartInfo.Arguments = "add";
-            addProcess.StartInfo.WorkingDirectory = fileSystemHelper.binariesDataDir;
+            addProcess.StartInfo.WorkingDirectory = filesystemHelper.binariesDataDir;
             addProcess.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
             addProcess.StartInfo.CreateNoWindow = true;
             addProcess.EnableRaisingEvents = true;
@@ -213,7 +233,7 @@ namespace SteamRomManagerCompanion
                     },
                     ParserInputs = new ParserInputs
                     {
-                        ManualManifests = Path.Combine(fileSystemHelper.manifestsDataDir, libraryName)
+                        ManualManifests = Path.Combine(filesystemHelper.manifestsDataDir, libraryName)
                     },
                     TitleFromVariable = new TitleFromVariable
                     {
@@ -287,8 +307,8 @@ namespace SteamRomManagerCompanion
 
         private void WriteJsonToConfigDir(string filename, object contents)
         {
-            var path = Path.Combine(fileSystemHelper.binariesDataDir, configDirectory, filename);
-            fileSystemHelper.WriteJson(path, contents);
+            var path = Path.Combine(filesystemHelper.binariesDataDir, configDirectory, filename);
+            filesystemHelper.WriteJson(path, contents);
         }
 
         private async Task<bool> DownloadBinary(bool force = false)
@@ -303,7 +323,7 @@ namespace SteamRomManagerCompanion
             var client = new HttpClient();
             try
             {
-                fileSystemHelper.WriteBinary(binaryPath, await client.GetByteArrayAsync(binarySourceUri));
+                filesystemHelper.WriteBinary(binaryPath, await client.GetByteArrayAsync(binarySourceUri));
                 logger.Info($"install succeeded, steam rom manager ready at {binaryPath}");
                 return true;
             }

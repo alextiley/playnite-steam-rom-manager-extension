@@ -40,6 +40,11 @@ namespace SteamRomManagerCompanion
             );
         }
 
+        public void Start()
+        {
+            _ = Process.Start(GetExecutablePath());
+        }
+
         public string GetActiveSteamUsername()
         {
             var username = Registry.CurrentUser.OpenSubKey("Software\\Valve\\Steam").GetValue("AutoLoginUser");

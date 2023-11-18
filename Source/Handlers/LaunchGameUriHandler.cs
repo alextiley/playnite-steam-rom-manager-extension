@@ -7,11 +7,10 @@ namespace SteamRomManagerCompanion
 {
     public delegate void GameDelegate(Game game);
 
-    internal class RegisterArgs
+    internal class LaunchGameUriHandlerRegisterArgs
     {
         public GameDelegate OnPostLaunchGame { get; set; }
         public GameDelegate OnInstallAbort { get; set; }
-        public IPlayniteAPI PlayniteApi { get; set; }
     }
 
     internal class LaunchGameUriHandler
@@ -26,7 +25,7 @@ namespace SteamRomManagerCompanion
             PlayniteApi = api;
         }
 
-        public void Register(RegisterArgs args)
+        public void Register(LaunchGameUriHandlerRegisterArgs args)
         {
             var onPostLaunchGame = args.OnPostLaunchGame;
             var onInstallAbort = args.OnInstallAbort;

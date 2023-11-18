@@ -1,8 +1,10 @@
 ﻿using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Windows;
 
 namespace SteamRomManagerCompanion
 {
@@ -81,10 +83,21 @@ namespace SteamRomManagerCompanion
             File.WriteAllBytes(path, bytes);
         }
 
+        public string GetSystemDirectory()
+        {
+            return Directory.GetParent(Environment.GetFolderPath(Environment.SpecialFolder.System)).FullName;
+        }
+
         public void WriteResourceToFile(string resourceName, string fileName)
         {
+            CreateDirectory(Path.GetDirectoryName(fileName));
+
             using (var resource = Assembly.GetExecutingAssembly().GetManifestResourceStream(resourceName))
             {
+                if (resource == null)
+                {
+                    throw new ResourceReferenceKeyNotFoundException("resource not found", resourceName);
+                }
                 using (var file = new FileStream(fileName, FileMode.Create, FileAccess.Write))
                 {
                     resource.CopyTo(file);

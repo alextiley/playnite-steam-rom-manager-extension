@@ -1,6 +1,7 @@
 ﻿using Playnite.SDK;
 using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -22,6 +23,13 @@ namespace SteamRomManagerCompanion
         {
             api = args.api;
             filesystemHelper = args.filesystemHelper;
+        }
+
+        public IEnumerable<Game> GetVisibleNonSteamGames()
+        {
+            return api.Database.Games
+                .Where((g) => !g.Hidden)
+                .Where(g => !GetLibraryPlugin(g).Name.ToLower().Contains("steam"));
         }
 
         public LibraryPlugin GetLibraryPlugin(Game g)
@@ -50,7 +58,7 @@ namespace SteamRomManagerCompanion
 
         public string GetInstallPath()
         {
-            return Path.GetDirectoryName(GetExecutablePath());
+            return api.Paths.ApplicationPath;
         }
     }
 }
