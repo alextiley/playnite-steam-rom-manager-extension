@@ -1,5 +1,6 @@
 ﻿using Playnite.SDK;
 using Playnite.SDK.Events;
+using Playnite.SDK.Models;
 using Playnite.SDK.Plugins;
 using System;
 using System.Collections.Generic;
@@ -8,22 +9,16 @@ using System.Windows.Controls;
 using Path = System.IO.Path;
 
 // TODO Handle Steam not being installed.
+// string EXE = Assembly.GetExecutingAssembly().GetName().Name;
 namespace SteamRomManagerCompanion
 {
     public class SteamRomManagerCompanion : GenericPlugin
     {
-        private const string uriHandlerToRegister = "steam-launcher";
-        private const string processRestartFlags = "--hidesplashscreen --startclosedtotray --nolibupdate";
-
         private static readonly ILogger logger = LogManager.GetLogger();
-
-        private readonly string binariesDataDir;
-        private readonly string manifestsDataDir;
 
         private readonly SteamHelper steamHelper;
         private readonly SteamRomManagerHelper steamRomManager;
         private readonly PlayniteHelper playniteHelper;
-        private readonly PlayniteGameHelper playniteGameHelper;
         private readonly LaunchGameUriHandler uriHandler;
         private readonly FilesystemHelper filesystemHelper;
 
@@ -33,24 +28,29 @@ namespace SteamRomManagerCompanion
 
         public SteamRomManagerCompanion(IPlayniteAPI api) : base(api)
         {
+
             steamHelper = new SteamHelper();
-            playniteHelper = new PlayniteHelper();
-            filesystemHelper = new FilesystemHelper();
+            uriHandler = new LaunchGameUriHandler(api);
 
-            Settings = new SteamRomManagerCompanionSettingsViewModel(this);
+            filesystemHelper = new FilesystemHelper(new FilesystemHelperArgs
+            {
+                binariesDataDir = Path.Combine(GetPluginUserDataPath(), "binaries"),
+                manifestsDataDir = Path.Combine(GetPluginUserDataPath(), "manifests"),
+                scriptsDir = Path.Combine(GetPluginUserDataPath(), "scripts"),
+                stateDataDir = Path.Combine(GetPluginUserDataPath(), "state"),
+            });
 
-            playniteGameHelper = new PlayniteGameHelper(
-                new PlayniteGameHelperArgs { api = api }
+            playniteHelper = new PlayniteHelper(
+                new PlayniteHelperArgs
+                {
+                    api = api,
+                    filesystemHelper = filesystemHelper
+                }
             );
-
-            binariesDataDir = Path.Combine(GetPluginUserDataPath(), "binaries");
-            manifestsDataDir = Path.Combine(GetPluginUserDataPath(), "manifests");
 
             steamRomManager = new SteamRomManagerHelper(
                 new SteamRomManagerHelperArgs
                 {
-                    BinariesDataDir = binariesDataDir,
-                    ManifestsDataDir = manifestsDataDir,
                     BinaryDestinationFilename = "steam-rom-manager.exe",
                     BinarySourceUri = "https://github.com/SteamGridDB/steam-rom-manager/releases/download/v2.4.17/Steam-ROM-Manager-portable-2.4.17.exe",
                     FileSystemHelper = filesystemHelper,
@@ -59,17 +59,8 @@ namespace SteamRomManagerCompanion
                 }
             );
 
-            uriHandler = new LaunchGameUriHandler(
-                new LaunchGameUriHandlerArgs
-                {
-                    PlayniteAPI = api,
-                }
-            );
-
-            Properties = new GenericPluginProperties
-            {
-                HasSettings = true
-            };
+            Settings = new SteamRomManagerCompanionSettingsViewModel(this);
+            Properties = new GenericPluginProperties { HasSettings = true };
         }
 
         /**
@@ -77,43 +68,38 @@ namespace SteamRomManagerCompanion
          */
         public override async void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
-            // Remove safestart.flag file. This is a hack!
-            // The file is created by Playnite due to how we end the process.
-            // Removing this file prevents the prompt from showing when we restart.
-            filesystemHelper.Delete(
-                Path.Combine(playniteHelper.GetInstallPath(), "safestart.flag")
-            );
-
             // Enable requests for starting or installing a game.
-            uriHandler.Register(uriHandlerToRegister);
+            uriHandler.Register(new RegisterArgs
+            {
+                PlayniteApi = PlayniteApi,
+                OnPostLaunchGame = (Game game) =>
+                {
+                    playniteHelper.SaveGameActiveState(game);
+                },
+                OnInstallAbort = (Game game) =>
+                {
+                    playniteHelper.DeleteGameActiveState();
+                }
+            });
 
             // Fetch Steam Rom Manager and store in the binaries directory.
             // We do this on start-up to optimise run time during library refresh.
             _ = await steamRomManager.Initialise();
+
+            // TODO: Any processes that don't rely on library update can be
+            // performed here to optimise run speed.
         }
 
         public override void OnGameInstalled(OnGameInstalledEventArgs args)
         {
-            // Restart Playnite when a game finishes installing.
-            // Steam will not think install has ended if the Playnite process
-            // that it spawned is still running.
-            if (uriHandler.WasTriggered)
-            {
-                logger.Info("game installed, restarting Playnite to trick steam into ending the running session");
-                playniteHelper.Restart(processRestartFlags);
-            }
+            playniteHelper.DeleteGameActiveState();
         }
 
+        // TODO Check if this fires when an install stops.
+        // If not, we can code for this by checking if the running game is still installing periodically.
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
-            // Restart Playnite when a game session ends.
-            // Steam will not think play has ended if the Playnite process
-            // that it spawned is still running.
-            if (uriHandler.WasTriggered)
-            {
-                logger.Info("game ended, restarting Playnite to trick steam into ending the running session");
-                playniteHelper.Restart(processRestartFlags);
-            }
+            playniteHelper.DeleteGameActiveState();
         }
 
         public override async void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
@@ -137,7 +123,23 @@ namespace SteamRomManagerCompanion
             // Get all visible "non Steam" games.
             var nonSteamGames = PlayniteApi.Database.Games
                 .Where((g) => !g.Hidden)
-                .Where(g => !playniteGameHelper.GetLibraryPlugin(g).Name.ToLower().Contains("steam"));
+                .Where(g => !playniteHelper.GetLibraryPlugin(g).Name.ToLower().Contains("steam"));
+
+            // Do a very basic check on whether we need to re-import or not.
+            var cacheFile = Path.Combine(filesystemHelper.stateDataDir, "cache");
+            var prevGameIds = filesystemHelper.ReadFile(cacheFile);
+            var nextGameIds = string.Join(",", nonSteamGames.Select(x => x.Id).OrderBy(x => x));
+
+            if (prevGameIds == nextGameIds)
+            {
+                logger.Info("no changes since the previous library import. skipping.");
+                return;
+            }
+
+            logger.Info("changes to library detected. continuing.");
+
+            // Write the list of games we're importing to the cache for comparison next time.
+            filesystemHelper.WriteFile(cacheFile, nextGameIds);
 
             logger.Info($"{nonSteamGames.Count()} games found. grouping by library into steam rom manager manifest format");
 
@@ -149,10 +151,13 @@ namespace SteamRomManagerCompanion
                 new CreateLibraryManifestDictionaryArgs
                 {
                     Games = nonSteamGames,
-                    GroupBySelectorFunc = (g) => playniteGameHelper.GetLibraryPlugin(g),
+                    GroupBySelectorFunc = (g) => playniteHelper.GetLibraryPlugin(g),
                     StartIn = playniteInstallDir,
-                    Target = $"playnite://{uriHandlerToRegister}/{{id}}",
+                    Target = Path.Combine(filesystemHelper.scriptsDir, "launch.cmd"),
+                    LaunchOptions = "{id}",
                 });
+
+            var manifestsDataDir = filesystemHelper.manifestsDataDir;
 
             logger.Info($"cleaning data directory: {manifestsDataDir}");
 

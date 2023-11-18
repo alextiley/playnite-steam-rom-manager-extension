@@ -1,35 +1,43 @@
 ﻿using Playnite.SDK;
+using Playnite.SDK.Models;
 using System;
+using System.Timers;
 
 namespace SteamRomManagerCompanion
 {
-    internal class LaunchGameUriHandlerArgs
+    public delegate void GameDelegate(Game game);
+
+    internal class RegisterArgs
     {
-        public IPlayniteAPI PlayniteAPI { get; set; }
+        public GameDelegate OnPostLaunchGame { get; set; }
+        public GameDelegate OnInstallAbort { get; set; }
+        public IPlayniteAPI PlayniteApi { get; set; }
     }
 
     internal class LaunchGameUriHandler
     {
-        public bool WasTriggered { get; set; } = false;
-
+        private static readonly ILogger logger = LogManager.GetLogger();
         private readonly IPlayniteAPI PlayniteApi;
 
-        private static readonly ILogger logger = LogManager.GetLogger();
+        public const string path = "steam-launcher";
 
-        public LaunchGameUriHandler(LaunchGameUriHandlerArgs args)
+        public LaunchGameUriHandler(IPlayniteAPI api)
         {
-            PlayniteApi = args.PlayniteAPI;
+            PlayniteApi = api;
         }
 
-        public void Register(string path)
+        public void Register(RegisterArgs args)
         {
+            var onPostLaunchGame = args.OnPostLaunchGame;
+            var onInstallAbort = args.OnInstallAbort;
+
             logger.Info($"registering handler 'playnite://{path}/.*'");
 
-            PlayniteApi.UriHandler.RegisterSource(path, (args) =>
+            PlayniteApi.UriHandler.RegisterSource(path, (handlerArgs) =>
             {
                 logger.Info($"handler 'playnite://{path}/.*' invoked");
 
-                var id = args.Arguments[0];
+                var id = handlerArgs.Arguments[0];
                 if (id == null)
                 {
                     logger.Error("no argument provided to handler, exiting");
@@ -59,10 +67,42 @@ namespace SteamRomManagerCompanion
                 else
                 {
                     logger.Info($"installing game: {game.Name}");
+
                     PlayniteApi.InstallGame(guid);
+
+                    var installTimer = new Timer { Interval = 20000 };
+                    installTimer.Elapsed += (sender, e) => CheckInstallationState(installTimer, guid, onInstallAbort);
+                    installTimer.Start();
                 }
-                WasTriggered = true;
+
+                onPostLaunchGame?.Invoke(game);
             });
+        }
+
+        private void CheckInstallationState(Timer timer, Guid guid, GameDelegate onInstallAbort)
+        {
+            var game = PlayniteApi.Database.Games.Get(guid);
+
+            if (game == null)
+            {
+                logger.Error($"Unable to find game with ID: {guid}");
+                timer.Stop();
+                timer.Dispose();
+                return;
+            }
+
+            if (!IsGameInstallerRunning(game))
+            {
+                onInstallAbort?.Invoke(game);
+                timer.Stop();
+                timer.Dispose();
+            }
+        }
+
+        private bool IsGameInstallerRunning(Game game)
+        {
+            // Check processes associated to library
+            return true;
         }
 
         private Guid? ParseGameIdFromEventArgs(string id)

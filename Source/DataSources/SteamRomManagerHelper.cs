@@ -25,8 +25,6 @@ namespace SteamRomManagerCompanion
 
     internal class SteamRomManagerHelperArgs
     {
-        public string BinariesDataDir { get; set; }
-        public string ManifestsDataDir { get; set; }
         public string SteamInstallDir { get; set; }
         public string SteamActiveUsername { get; set; }
         public string BinarySourceUri { get; set; }
@@ -39,8 +37,6 @@ namespace SteamRomManagerCompanion
         private const string configDirectory = "userData";
 
         private readonly string binarySourceUri;
-        private readonly string binariesDir;
-        private readonly string manifestsDir;
         private readonly string binaryFilename;
         private readonly string binaryPath;
         private readonly string steamActiveUsername;
@@ -52,14 +48,12 @@ namespace SteamRomManagerCompanion
 
         public SteamRomManagerHelper(SteamRomManagerHelperArgs args)
         {
+            fileSystemHelper = args.FileSystemHelper;
             binarySourceUri = args.BinarySourceUri;
-            binariesDir = args.BinariesDataDir;
-            manifestsDir = args.ManifestsDataDir;
             steamInstallDir = args.SteamInstallDir;
-            binaryPath = Path.Combine(args.BinariesDataDir, args.BinaryDestinationFilename);
+            binaryPath = Path.Combine(args.FileSystemHelper.binariesDataDir, args.BinaryDestinationFilename);
             binaryFilename = args.BinaryDestinationFilename;
             steamActiveUsername = args.SteamActiveUsername;
-            fileSystemHelper = args.FileSystemHelper;
         }
 
         public bool IsBinaryDownloaded()
@@ -82,7 +76,7 @@ namespace SteamRomManagerCompanion
 
             enableProcess.StartInfo.FileName = binaryFilename;
             enableProcess.StartInfo.Arguments = "enable --all";
-            enableProcess.StartInfo.WorkingDirectory = binariesDir;
+            enableProcess.StartInfo.WorkingDirectory = fileSystemHelper.binariesDataDir;
             enableProcess.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
             enableProcess.StartInfo.CreateNoWindow = true;
             enableProcess.EnableRaisingEvents = true;
@@ -101,7 +95,7 @@ namespace SteamRomManagerCompanion
 
             addProcess.StartInfo.FileName = binaryFilename;
             addProcess.StartInfo.Arguments = "add";
-            addProcess.StartInfo.WorkingDirectory = binariesDir;
+            addProcess.StartInfo.WorkingDirectory = fileSystemHelper.binariesDataDir;
             addProcess.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
             addProcess.StartInfo.CreateNoWindow = true;
             addProcess.EnableRaisingEvents = true;
@@ -140,7 +134,7 @@ namespace SteamRomManagerCompanion
                         game => new SteamRomManagerManifestEntry(
                             new SteamRomManagerManifestEntryArgs
                             {
-                                LaunchOptions = args.LaunchOptions ?? "",
+                                LaunchOptions = args.LaunchOptions?.Replace("{id}", $"{game.Id}") ?? "",
                                 StartIn = args.StartIn,
                                 Target = args.Target.Replace("{id}", $"{game.Id}"),
                                 Title = game.Name
@@ -219,7 +213,7 @@ namespace SteamRomManagerCompanion
                     },
                     ParserInputs = new ParserInputs
                     {
-                        ManualManifests = Path.Combine(manifestsDir, libraryName)
+                        ManualManifests = Path.Combine(fileSystemHelper.manifestsDataDir, libraryName)
                     },
                     TitleFromVariable = new TitleFromVariable
                     {
@@ -293,7 +287,7 @@ namespace SteamRomManagerCompanion
 
         private void WriteJsonToConfigDir(string filename, object contents)
         {
-            var path = Path.Combine(binariesDir, configDirectory, filename);
+            var path = Path.Combine(fileSystemHelper.binariesDataDir, configDirectory, filename);
             fileSystemHelper.WriteJson(path, contents);
         }
 

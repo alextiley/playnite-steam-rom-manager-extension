@@ -5,8 +5,34 @@ using System.Linq;
 
 namespace SteamRomManagerCompanion
 {
+    internal class FilesystemHelperArgs
+    {
+        public string binariesDataDir { get; set; }
+        public string manifestsDataDir { get; set; }
+        public string scriptsDir { get; set; }
+        public string stateDataDir { get; set; }
+    }
+
     internal class FilesystemHelper
     {
+        public string binariesDataDir { get; }
+        public string manifestsDataDir { get; }
+        public string scriptsDir { get; }
+        public string stateDataDir { get; }
+
+        public FilesystemHelper(FilesystemHelperArgs args)
+        {
+            binariesDataDir = args.binariesDataDir;
+            manifestsDataDir = args.manifestsDataDir;
+            scriptsDir = args.scriptsDir;
+            stateDataDir = args.stateDataDir;
+        }
+
+        public string ReadFile(string path)
+        {
+            return File.Exists(path) ? File.ReadAllText(path) : null;
+        }
+
         public void DeleteDirectoryContents(string path)
         {
             try
