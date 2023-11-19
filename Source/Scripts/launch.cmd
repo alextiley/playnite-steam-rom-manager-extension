@@ -68,7 +68,6 @@ set "GameId=%~1"
 set "PlayniteDirectory=%cd%"
 set "ExtensionId=5fe1d136-a9dc-44d7-80d2-43c02df6e546"
 set "PlayniteDesktopProcess=Playnite.DesktopApp.exe"
-set "PlayniteFullscreenProcess=Playnite.FullscreenApp.exe"
 set "PlayniteLaunchPath=%PlayniteDirectory%\%PlayniteDesktopProcess%"
 set "PlayniteLaunchFlags=--hidesplashscreen --startclosedtotray --nolibupdate"
 set "GameStateFileToMonitor=%PlayniteDirectory%\ExtensionsData\%ExtensionId%\state\active_game\%GameId%"
@@ -83,44 +82,6 @@ if not exist "%PlayniteDirectory%\%PlayniteDesktopProcess%" (
 echo Working directory is valid: %PlayniteDirectory%.
 
 :: ---------------------------------------------------------------------------------
-::   Check if a Playnite process is already running
-:: ---------------------------------------------------------------------------------
-
-echo Checking if Playnite is already running...
-
-tasklist /FI "IMAGENAME eq %PlayniteDesktopProcess%" 2>NUL | find /I /N "%PlayniteDesktopProcess%">NUL
-set "PlayniteDesktopProcessMissing=%ERRORLEVEL%"
-
-tasklist /FI "IMAGENAME eq %PlayniteFullscreenProcess%" 2>NUL | find /I /N "%PlayniteFullscreenProcess%">NUL
-set "PlayniteFullscreenProcessMissing=%ERRORLEVEL%"
-
-if "%PlayniteDesktopProcessMissing%" equ "0" (
-	echo %PlayniteDesktopProcess% is already running.
-    set "PlayniteStartedByScript=0"
-) else if "%PlayniteFullscreenProcessMissing%" equ "0" (
-	echo %PlayniteFullscreenProcess% is already running.
-    set "PlayniteStartedByScript=0"
-) else (
-    echo Playnite is not running. Starting process: %PlayniteLaunchPath% %PlayniteLaunchFlags%
-    set "PlayniteStartedByScript=1"
-)
-
-:: ---------------------------------------------------------------------------------
-::   Start the Playnite process if not already running and delay for 5 seconds
-:: ---------------------------------------------------------------------------------
-:: TODO verify if we really need this - it seems to break things.
-if "%PlayniteStartedByScript%" equ "1" (
-
-    if "%IsDryRun%" equ "0" (
-        echo Running powershell command...
-        powershell -Command "Start-Process %PlayniteLaunchPath% -ArgumentList ""%PlayniteLaunchFlags%""" || (echo Failed to start Playnite process. && exit /b 3)
-	)
-    timeout /t 5 /nobreak >nul
-
-    echo Playnite process started.
-)
-
-:: ---------------------------------------------------------------------------------
 ::   Start the game session and delay for 5 seconds
 :: ---------------------------------------------------------------------------------
 
@@ -128,6 +89,8 @@ echo Starting game session via playnite://steam-launcher/%GameId%...
 
 if "%IsDryRun%" equ "0" (
     echo Running powershell command...
+    :: TODO see if possible to launch %PlayniteLaunchPath% with URI handler and arguments
+    :: This will show the splash screen on startup, which would be better hidden.
 	powershell -Command "Start-Process playnite://steam-launcher/%GameId%" || (echo Failed to start game session && exit /b 4)
 )
 
