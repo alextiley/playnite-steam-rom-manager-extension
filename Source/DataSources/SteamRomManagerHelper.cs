@@ -1,6 +1,5 @@
 ﻿using Playnite.SDK;
 using Playnite.SDK.Models;
-using Playnite.SDK.Plugins;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -12,7 +11,7 @@ using Path = System.IO.Path;
 
 namespace SteamRomManagerCompanion
 {
-    public delegate LibraryPlugin GroupBySelectorFunc(Game game);
+    public delegate (Guid, string) GroupBySelectorFunc(Game game);
 
     public class CreateLibraryManifestDictionaryArgs
     {
@@ -58,7 +57,7 @@ namespace SteamRomManagerCompanion
 
         public string GetCacheFilePath()
         {
-            return Path.Combine(filesystemHelper.stateDataDir, "cache");
+            return Path.Combine(filesystemHelper.stateDataDir, "cache", "sync");
         }
 
         public void UpdateLibraryCache(string cacheValue)
@@ -142,14 +141,14 @@ namespace SteamRomManagerCompanion
             return true;
         }
 
-        public Dictionary<string, List<SteamRomManagerManifestEntry>> CreateLibraryManifestDict(CreateLibraryManifestDictionaryArgs args)
+        public Dictionary<(Guid, string), List<SteamRomManagerManifestEntry>> CreateLibraryManifestDict(CreateLibraryManifestDictionaryArgs args)
         {
             return args.Games
                 .GroupBy(
                     game => args.GroupBySelectorFunc(game)
                 )
                 .ToDictionary(
-                    group => group.Key.Name,
+                    group => group.Key,
                     group => group.Select(
                         game => new SteamRomManagerManifestEntry(
                             new SteamRomManagerManifestEntryArgs
@@ -201,16 +200,17 @@ namespace SteamRomManagerCompanion
             };
         }
 
-        public IEnumerable<SteamRomManagerParserConfig> CreateUserConfigurations(string[] libraryNames)
+        public IEnumerable<SteamRomManagerParserConfig> CreateUserConfigurations(IEnumerable<(Guid, string)> configs)
         {
-            return libraryNames.Select((libraryName, i) =>
+            return configs.Select((config, i) =>
             {
+                var (guid, name) = config;
                 return new SteamRomManagerParserConfig
                 {
                     ParserType = "Manual",
-                    ConfigTitle = $"Playnite - {libraryName}",
+                    ConfigTitle = $"Playnite - {name}",
                     SteamDirectory = "${steamDirGlobal}",
-                    SteamCategory = $"${{{libraryName}}}",
+                    SteamCategory = $"${{{name}}}",
                     RomDirectory = "",
                     ExecutableArgs = "",
                     ExecutableModifier = "\"${exePath}\"",
@@ -233,7 +233,7 @@ namespace SteamRomManagerCompanion
                     },
                     ParserInputs = new ParserInputs
                     {
-                        ManualManifests = Path.Combine(filesystemHelper.manifestsDataDir, libraryName)
+                        ManualManifests = Path.Combine(filesystemHelper.manifestsDataDir, $"{guid}")
                     },
                     TitleFromVariable = new TitleFromVariable
                     {
@@ -293,6 +293,11 @@ namespace SteamRomManagerCompanion
                     Version = 15
                 };
             });
+        }
+
+        public void DeleteManifests()
+        {
+            filesystemHelper.DeleteDirectoryContents(filesystemHelper.manifestsDataDir);
         }
 
         public void WriteUserConfigurations(IEnumerable<SteamRomManagerParserConfig> configs)

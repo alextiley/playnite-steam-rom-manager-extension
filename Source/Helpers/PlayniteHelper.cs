@@ -78,14 +78,14 @@ namespace SteamRomManagerCompanion
         public void SaveGameActiveState(Game game)
         {
             var stateDataDir = filesystemHelper.stateDataDir;
-            var destination = Path.Combine(stateDataDir, "active_game", game.Id.ToString());
+            var destination = Path.Combine(stateDataDir, "track", game.Id.ToString());
             filesystemHelper.WriteFile(destination, "");
         }
 
         public void DeleteGameActiveState()
         {
             var stateDataDir = filesystemHelper.stateDataDir;
-            var destination = Path.Combine(stateDataDir, "active_game");
+            var destination = Path.Combine(stateDataDir, "track");
             filesystemHelper.DeleteDirectoryContents(destination);
         }
 

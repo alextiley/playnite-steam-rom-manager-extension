@@ -77,7 +77,7 @@ set "PlayniteFullscreenProcess=Playnite.FullscreenApp.exe"
 set "PlayniteLaunchPath=%PlayniteDirectory%\%PlayniteDesktopProcess%"
 set "PlayniteLaunchFlags=--hidesplashscreen --startclosedtotray --nolibupdate"
 set "PlayniteExtensionDir=%PlayniteDirectory%\ExtensionsData\%ExtensionId%"
-set "GameStateFileToMonitor=%PlayniteExtensionDir%\state\active_game\%GameId%"
+set "GameStateFileToMonitor=%PlayniteExtensionDir%\state\track\%GameId%"
 
 echo Validating working directory...
 

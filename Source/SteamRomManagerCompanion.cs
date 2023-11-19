@@ -143,7 +143,9 @@ namespace SteamRomManagerCompanion
                 PrepareManifestsDirectory();
                 WriteManifests(manifestsByLibrary);
 
-                steamRomManagerHelper.WriteUserConfigurations(CreateSrmUserConfigs(manifestsByLibrary));
+                steamRomManagerHelper.WriteUserConfigurations(
+                    steamRomManagerHelper.CreateUserConfigurations(manifestsByLibrary.Select(x => x.Key))
+                );
 
                 if (wasSteamRunning)
                 {
@@ -190,22 +192,12 @@ namespace SteamRomManagerCompanion
             return new SteamRomManagerCompanionSettingsView();
         }
 
-        private IEnumerable<SteamRomManagerParserConfig> CreateSrmUserConfigs(Dictionary<string, List<SteamRomManagerManifestEntry>> manifestsByLibrary)
-        {
-            var libraryPluginNames = manifestsByLibrary.Select((pair) => pair.Key).ToArray();
-            return steamRomManagerHelper.CreateUserConfigurations(libraryPluginNames);
-        }
-
         private bool CheckUserWishesToSync(bool isSteamRunning)
         {
             // TODO Move into i18n resources
             var caption = "Add non-Steam games?";
-            var pre = "Your library has been updated with new non-Steam games! Would you like to add them to Steam?";
-            var open = isSteamRunning ? "re-open" : "open";
-            var post = $"Please do not {open} Steam until import is completed.";
-            var prompt = isSteamRunning
-                ? $"{pre} It looks like Steam is running right now, so we'll close that for you automatically. {post}"
-                : $"{pre} {post}";
+            var message = "Your library has been updated with new non-Steam games! Would you like to add them to Steam?";
+            var prompt = isSteamRunning ? $"{message} Please do not open Steam until import is completed." : message;
             var buttons = MessageBoxButton.YesNo;
             var icon = MessageBoxImage.Question;
 
@@ -250,13 +242,13 @@ namespace SteamRomManagerCompanion
             );
         }
 
-        private void WriteManifests(Dictionary<string, List<SteamRomManagerManifestEntry>> manifestsByLibrary)
+        private void WriteManifests(Dictionary<(Guid, string), List<SteamRomManagerManifestEntry>> manifestsByLibrary)
         {
             manifestsByLibrary.ForEach((pair) =>
             {
-                var libraryName = pair.Key;
+                var (guid, _) = pair.Key;
                 var manifestJson = pair.Value;
-                var path = Path.Combine(filesystemHelper.manifestsDataDir, libraryName, "manifest.json");
+                var path = Path.Combine(filesystemHelper.manifestsDataDir, $"{guid}", "manifest.json");
 
                 filesystemHelper.WriteJson(path, manifestJson);
 
@@ -271,14 +263,14 @@ namespace SteamRomManagerCompanion
             filesystemHelper.DeleteDirectoryContents(filesystemHelper.manifestsDataDir);
         }
 
-        private Dictionary<string, List<SteamRomManagerManifestEntry>> MapManifestsByLibrary(IEnumerable<Game> games)
+        private Dictionary<(Guid, string), List<SteamRomManagerManifestEntry>> MapManifestsByLibrary(IEnumerable<Game> games)
         {
             // The target command for each game uses wscript.exe in order to run a batch script in a hidden window.
             return steamRomManagerHelper.CreateLibraryManifestDict(
                 new CreateLibraryManifestDictionaryArgs
                 {
                     Games = games,
-                    GroupBySelectorFunc = (g) => playniteHelper.GetLibraryPlugin(g),
+                    GroupBySelectorFunc = (g) => (g.PluginId, PlayniteHelper.LibraryDictionary[g.PluginId].Item2),
                     StartIn = playniteHelper.GetInstallPath(),
                     Target = Path.Combine(filesystemHelper.GetSystemDirectory(), "System32", "wscript.exe"),
                     LaunchOptions = $"\"{Path.Combine(filesystemHelper.scriptsDir, "launch.vbs")}\" \"{{id}}\""
