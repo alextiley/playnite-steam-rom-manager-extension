@@ -14,7 +14,6 @@ using System.Windows.Controls;
 // TODO: Handle Steam not being installed.
 // TODO: Handle install aborts by checking processes - probably via known process names by library.
 //       May also be possible by finding spawned child processes of the current process?
-// TODO: Improve UI behaviour when import is happening.
 // TODO: Look into dependency injection.
 // TODO: Tidy up everything in general, it's a mess!
 // TODO: Delete active_game contents where game is terminated directly from steam and event handlers below are not called.
