@@ -10,17 +10,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 
-// TODO: Create mapping of Playnite plugins -> Steam category names
-// TODO: Handle Steam not being installed.
-// TODO: Handle install aborts by checking processes - probably via known process names by library.
-//       May also be possible by finding spawned child processes of the current process?
-// TODO: Look into dependency injection.
-// TODO: Tidy up everything in general, it's a mess!
-// TODO: Delete active_game contents where game is terminated directly from steam and event handlers below are not called.
-//       This might be possible for checking if our script process gets terminated.
-//       May also be possible by finding spawned child processes of the current process and detected when that is terminated?
-// 
-// TODO: No need to copy script resources on every run. But maybe we should in case of invalidation. Need to think about this.
 namespace SteamRomManagerCompanion
 {
     public class SteamRomManagerCompanion : GenericPlugin
@@ -40,7 +29,11 @@ namespace SteamRomManagerCompanion
         public SteamRomManagerCompanion(IPlayniteAPI api) : base(api)
         {
             steamHelper = new SteamHelper();
-            uriHandler = new LaunchGameUriHandler(api);
+
+            uriHandler = new LaunchGameUriHandler(new LaunchGameUriHandlerArgs
+            {
+                PlayniteApi = api,
+            });
 
             filesystemHelper = new FilesystemHelper(new FilesystemHelperArgs
             {
@@ -50,24 +43,20 @@ namespace SteamRomManagerCompanion
                 stateDataDir = Path.Combine(GetPluginUserDataPath(), "state"),
             });
 
-            playniteHelper = new PlayniteHelper(
-                new PlayniteHelperArgs
-                {
-                    api = api,
-                    filesystemHelper = filesystemHelper
-                }
-            );
+            playniteHelper = new PlayniteHelper(new PlayniteHelperArgs
+            {
+                api = api,
+                filesystemHelper = filesystemHelper
+            });
 
-            steamRomManagerHelper = new SteamRomManagerHelper(
-                new SteamRomManagerHelperArgs
-                {
-                    BinaryDestinationFilename = "steam-rom-manager.exe",
-                    BinarySourceUri = "https://github.com/SteamGridDB/steam-rom-manager/releases/download/v2.4.17/Steam-ROM-Manager-portable-2.4.17.exe",
-                    FilesystemHelper = filesystemHelper,
-                    SteamInstallDir = steamHelper.GetInstallPath(),
-                    SteamActiveUsername = steamHelper.GetActiveSteamUsername()
-                }
-            );
+            steamRomManagerHelper = new SteamRomManagerHelper(new SteamRomManagerHelperArgs
+            {
+                BinaryDestinationFilename = "steam-rom-manager.exe",
+                BinarySourceUri = "https://github.com/SteamGridDB/steam-rom-manager/releases/download/v2.4.17/Steam-ROM-Manager-portable-2.4.17.exe",
+                FilesystemHelper = filesystemHelper,
+                SteamInstallDir = steamHelper.GetInstallPath(),
+                SteamActiveUsername = steamHelper.GetActiveSteamUsername()
+            });
 
             Settings = new SteamRomManagerCompanionSettingsViewModel(this);
             Properties = new GenericPluginProperties { HasSettings = true };
@@ -75,27 +64,30 @@ namespace SteamRomManagerCompanion
 
         public override async void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
+            // Clean up anything that might be left if games didn't exit cleanly.
+            playniteHelper.DeleteGameActiveState();
+
+            // Copy the entrypoint script into the extension data directory.
             if (!CopyGameScriptsToExtensionsDirectory())
             {
                 return;
             }
 
+            // Fetch required binaries
             _ = await EnsureSteamRomManagerIsDownloaded();
 
+            // Register a custom handler for running or installing games.
             uriHandler.Register(new LaunchGameUriHandlerRegisterArgs
             {
-                OnPostLaunchGame = (Game game) => playniteHelper.SaveGameActiveState(game),
-                OnInstallAbort = (Game game) => playniteHelper.DeleteGameActiveState(),
+                // When a game is started by the handler (triggered by the entrypoint script), persist the game state file.
+                // The entrypoint script will scan for removal of this file.
+                OnStartGame = (Game game) => playniteHelper.SaveGameActiveState(game)
             });
-        }
-
-        public override void OnGameInstalled(OnGameInstalledEventArgs args)
-        {
-            playniteHelper.DeleteGameActiveState();
         }
 
         public override void OnGameStopped(OnGameStoppedEventArgs args)
         {
+            // When a game ends, clean up the created state file.
             playniteHelper.DeleteGameActiveState();
         }
 
@@ -106,6 +98,8 @@ namespace SteamRomManagerCompanion
             var nonSteamGames = playniteHelper.GetVisibleNonSteamGames();
             var (isSyncRequired, cacheValue) = steamRomManagerHelper.CheckLibrarySyncRequired(nonSteamGames);
 
+            // TODO: Consider checking which libraries have changed. We could then import single libraries into SRM,
+            // resulting in faster syncs.
             if (!isSyncRequired)
             {
                 logger.Info("no changes since the previous library import. skipping.");
@@ -169,13 +163,13 @@ namespace SteamRomManagerCompanion
                     return;
                 }
                 progress.CurrentProgressValue += 1;
-                progress.Text = "Non-Steam games successfully added! 🎉";
+                progress.Text = "Non-Steam games successfully added!";
 
                 if (CheckUserWishesToStartSteam(wasSteamRunning))
                 {
                     steamHelper.Start();
                 }
-                ShowSuccessNotification("Your non-Steam games were successfully added! 🎉");
+                ShowSuccessNotification("Your non-Steam games were successfully added!");
 
             }, options);
         }
@@ -199,7 +193,7 @@ namespace SteamRomManagerCompanion
         private bool CheckUserWishesToSync(bool isSteamRunning)
         {
             // TODO Move into i18n resources
-            var caption = "Sync into Steam?";
+            var caption = "Add non-Steam games?";
             var pre = "Your library has been updated with new non-Steam games! Would you like to add them to Steam?";
             var open = isSteamRunning ? "re-open" : "open";
             var post = $"Please do not {open} Steam until import is completed.";
@@ -228,7 +222,7 @@ namespace SteamRomManagerCompanion
             // TODO Move into i18n resources
             var caption = "Non-Steam games added!";
             var prompt = wasExitedDuringSync
-                ? "Your non-Steam games were successfully added! Would you like to relaunch Steam? 👀"
+                ? "Your non-Steam games were successfully added! Would you like to relaunch Steam?"
                 : "Your non-Steam games were successfully added! Would you like to start Steam now?";
             var buttons = MessageBoxButton.YesNo;
             var icon = MessageBoxImage.Question;

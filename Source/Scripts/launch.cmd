@@ -1,12 +1,8 @@
 @echo off
-:: cd %LocalAppData%\Playnite && %UserProfile%\Code\playnite-steam-rom-manager-extension\Source\Scripts\launch.cmd 12345
+::
 :: ---------------------------------------------------------------------------------
 ::   Playnite SteamRomManagerCompanion Game Session Launcher
 :: ---------------------------------------------------------------------------------
-::   The Playnite SteamRomManagerCompanion extension allows you to launch or install
-::   all of your non-Steam games from Steam, desktop or big picture mode. Simply
-::   install the extension, perform a library scan and then launch your games from
-::   Steam!
 ::
 ::   This script acts as a launcher for Playnite game sessions.
 ::
@@ -14,18 +10,14 @@
 ::       * It starts a Playnite process if one is not already running.
 ::       * It then triggers a Playnite game launch session, or installer.
 ::         - In the background, the extension writes a file to disk to indicate
-::           that a game install or launch session is active.
-::         - The extension removes the file when the game install or launch session
-::           ends.
-::       * It monitors for when the install or game session ends and exits the
-::         process in order to notify Steam that the game session has ended.
-::       * Steam will then update it's game play status. This means that your
-::         friends will be able to see what you're playing, even if it's not a
-::         Steam game!
+::           that a game launch session is active.
+::         - The extension removes the file when the game launch session ends.
+::       * It monitors for when the game session ends and exits the process.
+::         This helps Steam know about your in-game status.
 ::
 ::     How to use:
 ::       * Install the Playnite SteamRomManagerCompanion extension.
-::       * Perform a library scan.
+::       * Perform a library scan and let the extension do it's magic.
 ::       * Launch a game from Steam.
 ::
 ::     Notes:
@@ -116,7 +108,7 @@ if "%PlayniteDesktopProcessMissing%" equ "0" (
 :: ---------------------------------------------------------------------------------
 ::   Start the Playnite process if not already running and delay for 5 seconds
 :: ---------------------------------------------------------------------------------
-
+:: TODO verify if we really need this - it seems to break things.
 if "%PlayniteStartedByScript%" equ "1" (
 
     if "%IsDryRun%" equ "0" (
@@ -163,6 +155,6 @@ if exist "%GameStateFileToMonitor%" (
 ::   Tell Steam that the game session has ended by exiting this script
 :: ---------------------------------------------------------------------------------
 
-echo Exiting script. Goodbye.
+echo Exiting script.
 
 exit /b
