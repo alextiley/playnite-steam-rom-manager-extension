@@ -62,6 +62,12 @@ namespace SteamRomManagerCompanion
             Properties = new GenericPluginProperties { HasSettings = true };
         }
 
+        public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
+        {
+            // When Playnite closes, clean up game state.
+            playniteHelper.DeleteGameActiveState();
+        }
+
         public override async void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             // Clean up anything that might be left if games didn't exit cleanly.
