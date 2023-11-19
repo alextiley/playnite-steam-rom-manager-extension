@@ -37,10 +37,15 @@
 ::     0                       : Success.
 ::     1                       : Invalid arguments.
 ::     2                       : Playnite executable not found in current directory.
-::     3                       : Failed to start Playnite process.
-::     4                       : Failed to start game session.
+::     3                       : Playnite not running, user will start manually.
+::     4                       : Failed to start Playnite process on user's behalf.
+::     5                       : Failed to start game session.
 :: ---------------------------------------------------------------------------------
-
+::
+::   Known issues:
+::     * If Playnite wasn't open on launch, Steam shows as running until Playnite is terminated.
+::
+:: ---------------------------------------------------------------------------------
 echo Starting Playnite SteamRomManagerCompanion game session...
 
 :: ---------------------------------------------------------------------------------
@@ -68,9 +73,11 @@ set "GameId=%~1"
 set "PlayniteDirectory=%cd%"
 set "ExtensionId=5fe1d136-a9dc-44d7-80d2-43c02df6e546"
 set "PlayniteDesktopProcess=Playnite.DesktopApp.exe"
+set "PlayniteFullscreenProcess=Playnite.FullscreenApp.exe"
 set "PlayniteLaunchPath=%PlayniteDirectory%\%PlayniteDesktopProcess%"
 set "PlayniteLaunchFlags=--hidesplashscreen --startclosedtotray --nolibupdate"
-set "GameStateFileToMonitor=%PlayniteDirectory%\ExtensionsData\%ExtensionId%\state\active_game\%GameId%"
+set "PlayniteExtensionDir=%PlayniteDirectory%\ExtensionsData\%ExtensionId%"
+set "GameStateFileToMonitor=%PlayniteExtensionDir%\state\active_game\%GameId%"
 
 echo Validating working directory...
 
@@ -82,6 +89,39 @@ if not exist "%PlayniteDirectory%\%PlayniteDesktopProcess%" (
 echo Working directory is valid: %PlayniteDirectory%.
 
 :: ---------------------------------------------------------------------------------
+::   Check if a Playnite process is already running
+:: ---------------------------------------------------------------------------------
+
+echo Checking if Playnite is already running...
+
+tasklist /FI "IMAGENAME eq %PlayniteDesktopProcess%" 2>NUL | find /I /N "%PlayniteDesktopProcess%">NUL
+set "PlayniteDesktopProcessMissing=%ERRORLEVEL%"
+
+tasklist /FI "IMAGENAME eq %PlayniteFullscreenProcess%" 2>NUL | find /I /N "%PlayniteFullscreenProcess%">NUL
+set "PlayniteFullscreenProcessMissing=%ERRORLEVEL%"
+
+if "%PlayniteDesktopProcessMissing%" equ "0" (
+	echo %PlayniteDesktopProcess% is already running.
+    set "PlayniteNotRunning=0"
+) else if "%PlayniteFullscreenProcessMissing%" equ "0" (
+	echo %PlayniteFullscreenProcess% is already running.
+    set "PlayniteNotRunning=0"
+) else (
+    echo Playnite is not running. Starting process: %PlayniteLaunchPath% %PlayniteLaunchFlags%
+    set "PlayniteNotRunning=1"
+)
+
+:: ---------------------------------------------------------------------------------
+::   Start the Playnite process if not already running and delay for 5 seconds
+:: ---------------------------------------------------------------------------------
+if "%PlayniteNotRunning%" equ "1" (
+    powershell -Command "Add-Type -AssemblyName PresentationFramework; $Result = [System.Windows.MessageBox]::Show('It is recommended to run Playnite in the background before launching generated non-Steam games. Steam and Playnite will be unable to accurately detect play status. Press OK to proceed with incorrect tracking, or Cancel to abort game launch and start Playnite manually first.', 'Playnite not running', 1, 64); echo $Result; if ($Result -like '*cancel*') { Exit 1 }" ||  exit /b 3
+    echo Starting Playnite, tracking will be skewed.
+    powershell -Command "Start-Process %PlayniteLaunchPath% -ArgumentList ""%PlayniteLaunchFlags%""" || (echo Failed to start Playnite process. && exit /b 4)
+    timeout /t 5 /nobreak >nul
+)
+
+:: ---------------------------------------------------------------------------------
 ::   Start the game session and delay for 5 seconds
 :: ---------------------------------------------------------------------------------
 
@@ -89,9 +129,7 @@ echo Starting game session via playnite://steam-launcher/%GameId%...
 
 if "%IsDryRun%" equ "0" (
     echo Running powershell command...
-    :: TODO see if possible to launch %PlayniteLaunchPath% with URI handler and arguments
-    :: This will show the splash screen on startup, which would be better hidden.
-	powershell -Command "Start-Process playnite://steam-launcher/%GameId%" || (echo Failed to start game session && exit /b 4)
+    powershell -Command "Start-Process playnite://steam-launcher/%GameId%" || (echo Failed to start game session && exit /b 5)
 )
 
 timeout /t 5 /nobreak >nul
