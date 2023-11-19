@@ -14,8 +14,7 @@ namespace SteamRomManagerCompanion
         AmazonGamesLibrary,
         BattleNetLibrary,
         BattlestateGamesLibrary,
-        BethesdaLibrary,
-        ElectronicArtsLibrary,
+        EaAppLibrary,
         EpicLibrary,
         GogLibrary,
         IndieGalaLibrary,
@@ -46,6 +45,24 @@ namespace SteamRomManagerCompanion
             filesystemHelper = args.filesystemHelper;
         }
 
+        public static Dictionary<Guid, (Library, string)> LibraryDictionary { get; } = new Dictionary<Guid, (Library, string)>
+        {
+            { Guid.Parse("402674cd-4af6-4886-b6ec-0e695bfa0688"), (Library.AmazonGamesLibrary, "Amazon Games") },
+            { Guid.Parse("E3C26A3D-D695-4CB7-A769-5FF7612C7EDD"), (Library.BattleNetLibrary, "Battle.net") },
+            { Guid.Parse("d0217e44-0df5-45f7-8515-478bdf21a883"), (Library.BattlestateGamesLibrary, "Battlestate Games") },
+            { Guid.Parse("85DD7072-2F20-4E76-A007-41035E390724"), (Library.EaAppLibrary, "EA Games") },
+            { Guid.Parse("00000002-DBD1-46C6-B5D0-B1BA559D10E4"), (Library.EpicLibrary, "Epic Games") },
+            { Guid.Parse("AEBE8B7C-6DC3-4A66-AF31-E7375C6B5E9E"), (Library.GogLibrary, "GOG") },
+            { Guid.Parse("f7da6eb0-17d7-497c-92fd-347050914954"), (Library.IndieGalaLibrary, "IndieGala") },
+            { Guid.Parse("00000001-EBB2-4EEC-ABCB-7C89937A42BB"), (Library.ItchioLibrary, "Itch.io") },
+            { Guid.Parse("34c3178f-6e1d-4e27-8885-99d4f031b168"), (Library.LegacyGamesLibrary, "Legacy Games") },
+            { Guid.Parse("317a5e2e-eac1-48bc-adb3-fb9e321afd3f"), (Library.RiotGamesLibrary, "Riot Games") },
+            { Guid.Parse("88409022-088a-4de8-805a-fdbac291f00a"), (Library.RockstarGamesLibrary, "Rockstar Games") },
+            { Guid.Parse("CB91DFC9-B977-43BF-8E70-55F46E410FAB"), (Library.SteamLibrary, "Steam") },
+            { Guid.Parse("C2F038E5-8B92-4877-91F1-DA9094155FC5"), (Library.UbisoftConnectLibrary, "Ubisoft") },
+            { Guid.Parse("7e4fbb5e-2ae3-48d4-8ba0-6b30e7a4e287"), (Library.XboxLibrary, "Xbox") },
+        };
+
         public IEnumerable<Game> GetVisibleNonSteamGames()
         {
             return api.Database.Games
@@ -56,44 +73,6 @@ namespace SteamRomManagerCompanion
         public LibraryPlugin GetLibraryPlugin(Game g)
         {
             return (LibraryPlugin)api.Addons.Plugins.Where(x => x.Id == g.PluginId).Single();
-        }
-
-        public Library GetLibraryFromPluginId(Guid pluginId)
-        {
-            // TODO: Create mapping of plugins -> Steam category names
-            switch (pluginId.ToString())
-            {
-                case "402674cd-4af6-4886-b6ec-0e695bfa0688":
-                    return Library.AmazonGamesLibrary;
-                case "e3c26a3d-d695-4cb7-a769-5ff7612c7edd":
-                    return Library.BattleNetLibrary;
-                case "d0217e44-0df5-45f7-8515-478bdf21a883":
-                    return Library.BattlestateGamesLibrary;
-                case "85dd7072-2f20-4e76-a007-41035e390724":
-                    return Library.ElectronicArtsLibrary;
-                case "00000002-dbd1-46c6-b5d0-b1ba559d10e4":
-                    return Library.EpicLibrary;
-                case "aebe8b7c-6dc3-4a66-af31-e7375c6b5e9e":
-                    return Library.GogLibrary;
-                case "f7da6eb0-17d7-497c-92fd-347050914954":
-                    return Library.IndieGalaLibrary;
-                case "00000001-ebb2-4eec-abcb-7c89937a42bb":
-                    return Library.ItchioLibrary;
-                case "34c3178f-6e1d-4e27-8885-99d4f031b168":
-                    return Library.LegacyGamesLibrary;
-                case "317a5e2e-eac1-48bc-adb3-fb9e321afd3f":
-                    return Library.RiotGamesLibrary;
-                case "88409022-088a-4de8-805a-fdbac291f00a":
-                    return Library.RockstarGamesLibrary;
-                case "cb91dfc9-b977-43bf-8e70-55f46e410fab":
-                    return Library.SteamLibrary;
-                case "c2f038e5-8b92-4877-91f1-da9094155fc5":
-                    return Library.UbisoftConnectLibrary;
-                case "7e4fbb5e-2ae3-48d4-8ba0-6b30e7a4e287":
-                    return Library.XboxLibrary;
-                default:
-                    return Library.UnknownLibrary;
-            }
         }
 
         public void SaveGameActiveState(Game game)
