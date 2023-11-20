@@ -152,6 +152,9 @@ if exist "%GameStateFileToMonitor%" (
     echo Game state file not found, game is not running.
 )
 
+:: TODO: If we started Playnite, terminate it. This may result in Playnite showing an
+::       error on start-up, but the user was warned at launch.
+
 :: ---------------------------------------------------------------------------------
 ::   Tell Steam that the game session has ended by exiting this script
 :: ---------------------------------------------------------------------------------
