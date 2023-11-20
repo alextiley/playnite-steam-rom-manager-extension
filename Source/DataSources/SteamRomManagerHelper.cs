@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
 using Path = System.IO.Path;
@@ -12,15 +11,6 @@ using Path = System.IO.Path;
 namespace SteamRomManagerCompanion
 {
     public delegate (Guid, string) GroupBySelectorFunc(Game game);
-
-    public class CreateLibraryManifestDictionaryArgs
-    {
-        public IEnumerable<Game> Games { get; set; }
-        public string LaunchOptions { get; set; }
-        public string StartIn { get; set; }
-        public string Target { get; set; }
-        public GroupBySelectorFunc GroupBySelectorFunc { get; set; }
-    }
 
     internal class SteamRomManagerHelperArgs
     {
@@ -53,25 +43,6 @@ namespace SteamRomManagerCompanion
             binaryPath = Path.Combine(args.FilesystemHelper.binariesDataDir, args.BinaryDestinationFilename);
             binaryFilename = args.BinaryDestinationFilename;
             steamActiveUsername = args.SteamActiveUsername;
-        }
-
-        public string GetCacheFilePath()
-        {
-            return Path.Combine(filesystemHelper.stateDataDir, "cache", "sync");
-        }
-
-        public void UpdateLibraryCache(string cacheValue)
-        {
-            filesystemHelper.WriteFile(GetCacheFilePath(), cacheValue);
-        }
-
-        public (bool isSyncRequired, string cacheValue) CheckLibrarySyncRequired(IEnumerable<Game> games)
-        {
-            var cacheFile = GetCacheFilePath();
-            var prev = filesystemHelper.ReadFile(cacheFile);
-            var next = string.Join(",", games.Select(x => x.Id).OrderBy(x => x));
-
-            return (isSyncRequired: prev != next, cacheValue: next);
         }
 
         public bool IsBinaryDownloaded()
@@ -141,28 +112,6 @@ namespace SteamRomManagerCompanion
             return true;
         }
 
-        public Dictionary<(Guid, string), List<SteamRomManagerManifestEntry>> CreateLibraryManifestDict(CreateLibraryManifestDictionaryArgs args)
-        {
-            return args.Games
-                .GroupBy(
-                    game => args.GroupBySelectorFunc(game)
-                )
-                .ToDictionary(
-                    group => group.Key,
-                    group => group.Select(
-                        game => new SteamRomManagerManifestEntry(
-                            new SteamRomManagerManifestEntryArgs
-                            {
-                                LaunchOptions = args.LaunchOptions?.Replace("{id}", $"{game.Id}") ?? "",
-                                StartIn = args.StartIn,
-                                Target = args.Target.Replace("{id}", $"{game.Id}"),
-                                Title = game.Name
-                            }
-                        )
-                    ).ToList()
-                );
-        }
-
         public SteamRomManagerUserSettings CreateUserSettings()
         {
             return new SteamRomManagerUserSettings
@@ -185,7 +134,7 @@ namespace SteamRomManagerCompanion
                 PreviewSettings = new PreviewSettings
                 {
                     RetrieveCurrentSteamImages = true,
-                    DeleteDisabledShortcuts = true,
+                    DeleteDisabledShortcuts = false,
                     ImageZoomPercentage = 30,
                     Preload = false,
                 },
@@ -200,99 +149,95 @@ namespace SteamRomManagerCompanion
             };
         }
 
-        public IEnumerable<SteamRomManagerParserConfig> CreateUserConfigurations(IEnumerable<(Guid, string)> configs)
+        public SteamRomManagerParserConfig CreateUserConfiguration(Guid guid, string name)
         {
-            return configs.Select((config, i) =>
+            return new SteamRomManagerParserConfig
             {
-                var (guid, name) = config;
-                return new SteamRomManagerParserConfig
+                ParserType = "Manual",
+                ConfigTitle = $"Playnite - {name}",
+                SteamDirectory = "${steamDirGlobal}",
+                SteamCategory = $"${{{name}}}",
+                RomDirectory = "",
+                ExecutableArgs = "",
+                ExecutableModifier = "\"${exePath}\"",
+                StartInDirectory = "",
+                TitleModifier = "${fuzzyTitle}",
+                FetchControllerTemplatesButton = null,
+                RemoveControllersButton = null,
+                ImageProviders = new[] { "SteamGridDB" },
+                OnlineImageQueries = "${${fuzzyTitle}}",
+                ImagePool = "${fuzzyTitle}",
+                UserAccounts = new UserAccounts
                 {
-                    ParserType = "Manual",
-                    ConfigTitle = $"Playnite - {name}",
-                    SteamDirectory = "${steamDirGlobal}",
-                    SteamCategory = $"${{{name}}}",
-                    RomDirectory = "",
-                    ExecutableArgs = "",
-                    ExecutableModifier = "\"${exePath}\"",
-                    StartInDirectory = "",
-                    TitleModifier = "${fuzzyTitle}",
-                    FetchControllerTemplatesButton = null,
-                    RemoveControllersButton = null,
-                    ImageProviders = new[] { "SteamGridDB" },
-                    OnlineImageQueries = "${${fuzzyTitle}}",
-                    ImagePool = "${fuzzyTitle}",
-                    UserAccounts = new UserAccounts
+                    SpecifiedAccounts = $"${{${{accountsglobal}}}}",
+                },
+                Executable = new Executable
+                {
+                    Path = "",
+                    ShortcutPassthrough = false,
+                    AppendArgsToExecutable = true,
+                },
+                ParserInputs = new ParserInputs
+                {
+                    ManualManifests = Path.Combine(filesystemHelper.manifestsDataDir, $"{guid}")
+                },
+                TitleFromVariable = new TitleFromVariable
+                {
+                    LimitToGroups = "",
+                    CaseInsensitiveVariables = false,
+                    SkipFileIfVariableWasNotFound = false,
+                    TryToMatchTitle = false
+                },
+                FuzzyMatch = new FuzzyMatch
+                {
+                    ReplaceDiacritics = true,
+                    RemoveCharacters = true,
+                    RemoveBrackets = true,
+                },
+                Controllers = new Controllers
+                {
+                    PS4 = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_ps4_gamepad_joystick.vdf" },
+                    PS5 = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_ps5_gamepad_joystick.vdf" },
+                    Xbox360 = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_xbox360_gamepad_joystick.vdf" },
+                    XboxOne = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_xboxone_gamepad_joystick.vdf" },
+                    SwitchJoyconLeft = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_switch_joycon_left_gamepad_joystick.vdf" },
+                    SwitchJoyconRight = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_switch_joycon_right_gamepad_joystick.vdf" },
+                    SwitchPro = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_switch_pro_gamepad_joystick.vdf" },
+                    Neptune = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_neptune_gamepad_joystick.vdf" },
+                },
+                ImageProviderAPIs = new ImageProviderAPIs
+                {
+                    SteamGridDB = new SteamGridDB
                     {
-                        SpecifiedAccounts = $"${{${{accountsglobal}}}}",
-                    },
-                    Executable = new Executable
-                    {
-                        Path = "",
-                        ShortcutPassthrough = false,
-                        AppendArgsToExecutable = true,
-                    },
-                    ParserInputs = new ParserInputs
-                    {
-                        ManualManifests = Path.Combine(filesystemHelper.manifestsDataDir, $"{guid}")
-                    },
-                    TitleFromVariable = new TitleFromVariable
-                    {
-                        LimitToGroups = "",
-                        CaseInsensitiveVariables = false,
-                        SkipFileIfVariableWasNotFound = false,
-                        TryToMatchTitle = false
-                    },
-                    FuzzyMatch = new FuzzyMatch
-                    {
-                        ReplaceDiacritics = true,
-                        RemoveCharacters = true,
-                        RemoveBrackets = true,
-                    },
-                    Controllers = new Controllers
-                    {
-                        PS4 = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_ps4_gamepad_joystick.vdf" },
-                        PS5 = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_ps5_gamepad_joystick.vdf" },
-                        Xbox360 = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_xbox360_gamepad_joystick.vdf" },
-                        XboxOne = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_xboxone_gamepad_joystick.vdf" },
-                        SwitchJoyconLeft = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_switch_joycon_left_gamepad_joystick.vdf" },
-                        SwitchJoyconRight = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_switch_joycon_right_gamepad_joystick.vdf" },
-                        SwitchPro = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_switch_pro_gamepad_joystick.vdf" },
-                        Neptune = new Controller { Title = "Gamepad", ProfileType = "template", MappingId = "controller_neptune_gamepad_joystick.vdf" },
-                    },
-                    ImageProviderAPIs = new ImageProviderAPIs
-                    {
-                        SteamGridDB = new SteamGridDB
-                        {
-                            Nsfw = false,
-                            Humor = false,
-                            Styles = new[] { "alternate", "blurred", "white_logo", "material" },
-                            StylesHero = new[] { "blurred", "alternate", "material" },
-                            StylesLogo = new[] { "official", "white", "black" },
-                            StylesIcon = new[] { "official", "custom" },
-                            ImageMotionTypes = new[] { "static" }
-                        }
-                    },
-                    DefaultImage = new Image
-                    {
-                        Tall = null,
-                        Long = null,
-                        Hero = null,
-                        Logo = null,
-                        Icon = null,
-                    },
-                    LocalImages = new Image
-                    {
-                        Tall = null,
-                        Long = null,
-                        Hero = null,
-                        Logo = null,
-                        Icon = null,
-                    },
-                    ParserId = $"GeneratedByPlayniteSteamRomManagerCompanion_{i}",
-                    Disabled = false,
-                    Version = 15
-                };
-            });
+                        Nsfw = false,
+                        Humor = false,
+                        Styles = new[] { "alternate", "blurred", "white_logo", "material" },
+                        StylesHero = new[] { "blurred", "alternate", "material" },
+                        StylesLogo = new[] { "official", "white", "black" },
+                        StylesIcon = new[] { "official", "custom" },
+                        ImageMotionTypes = new[] { "static" }
+                    }
+                },
+                DefaultImage = new Image
+                {
+                    Tall = null,
+                    Long = null,
+                    Hero = null,
+                    Logo = null,
+                    Icon = null,
+                },
+                LocalImages = new Image
+                {
+                    Tall = null,
+                    Long = null,
+                    Hero = null,
+                    Logo = null,
+                    Icon = null,
+                },
+                ParserId = $"GeneratedByPlayniteSteamRomManagerCompanion_{guid}",
+                Disabled = false,
+                Version = 15
+            };
         }
 
         public void DeleteManifests()

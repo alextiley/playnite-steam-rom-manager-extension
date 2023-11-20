@@ -75,6 +75,26 @@ namespace SteamRomManagerCompanion
             return (LibraryPlugin)api.Addons.Plugins.Where(x => x.Id == g.PluginId).Single();
         }
 
+        public IEnumerable<(Guid, IEnumerable<Game>, string)> GenerateLibraryCacheStatuses(IEnumerable<Game> nonSteamGames)
+        {
+            return nonSteamGames
+                .Select(x => x.PluginId)
+                .Distinct()
+                .Select(pluginId =>
+                {
+                    var gamesInLibrary = nonSteamGames.Where(g => g.PluginId == pluginId);
+                    var prev = ReadLibrarySyncCache(pluginId.ToString());
+                    var next = string.Join(",", gamesInLibrary.Select(x => x.Id).OrderBy(x => x));
+
+                    return (pluginId, gamesInLibrary, isSyncRequired: prev != next, next);
+                })
+                .Where(x => x.isSyncRequired)
+                .Select(x =>
+                {
+                    return (guid: x.pluginId, games: x.gamesInLibrary, cacheValue: x.next);
+                });
+        }
+
         public void SaveGameActiveState(Game game)
         {
             var stateDataDir = filesystemHelper.stateDataDir;
@@ -97,6 +117,21 @@ namespace SteamRomManagerCompanion
         public string GetInstallPath()
         {
             return api.Paths.ApplicationPath;
+        }
+
+        public string ReadLibrarySyncCache(string key)
+        {
+            return filesystemHelper.ReadFile(Path.Combine(GetSyncCachePath(), key));
+        }
+
+        public void WriteLibrarySyncCache(string key, string value)
+        {
+            filesystemHelper.WriteFile(Path.Combine(GetSyncCachePath(), key), value);
+        }
+
+        private string GetSyncCachePath()
+        {
+            return Path.Combine(filesystemHelper.stateDataDir, "cache", "sync");
         }
     }
 }
