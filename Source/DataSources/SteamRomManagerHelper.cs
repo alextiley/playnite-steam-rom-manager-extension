@@ -2,7 +2,6 @@
 using Playnite.SDK.Models;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -50,56 +49,24 @@ namespace SteamRomManagerCompanion
             return File.Exists(binaryPath);
         }
 
-        public async Task<bool> ConfigureSync()
+        public async Task<bool> ConfigureSync(IEnumerable<string> configIds)
         {
-            logger.Info("enabling all libraries in steam rom manager");
+            var timeout = 120 * 1000; // 2 minutes max execution
+            var args = $"enable {string.Join(" ", configIds)}";
+            var workingDir = filesystemHelper.binariesDataDir;
+            var result = await ProcessHelper.RunCommand(timeout, binaryFilename, args, workingDir);
 
-            var enableProcess = new Process();
-            var enableProcessHandled = new TaskCompletionSource<bool>();
-
-            enableProcess.StartInfo.FileName = binaryFilename;
-            enableProcess.StartInfo.Arguments = "enable --all";
-            enableProcess.StartInfo.WorkingDirectory = filesystemHelper.binariesDataDir;
-            enableProcess.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            enableProcess.StartInfo.CreateNoWindow = true;
-            enableProcess.EnableRaisingEvents = true;
-            enableProcess.Exited += new EventHandler(
-                (object sender, EventArgs e) => enableProcessHandled.TrySetResult(true)
-            );
-            _ = enableProcess.Start();
-
-            // Wait no longer than 60 seconds
-            _ = await Task.WhenAny(enableProcessHandled.Task, Task.Delay(60 * 1000));
-
-            logger.Info("libraries enabled in steam rom manager");
-
-            return true;
+            return result;
         }
 
         public async Task<bool> StartSync()
         {
-            logger.Info("libraries enabled, adding games to steam");
+            var timeout = 60 * 1000 * 15; // 15 minutes max execution
+            var args = "add";
+            var workingDir = filesystemHelper.binariesDataDir;
+            var result = await ProcessHelper.RunCommand(timeout, binaryFilename, args, workingDir);
 
-            var addProcess = new Process();
-            var addProcessHandled = new TaskCompletionSource<bool>();
-
-            addProcess.StartInfo.FileName = binaryFilename;
-            addProcess.StartInfo.Arguments = "add";
-            addProcess.StartInfo.WorkingDirectory = filesystemHelper.binariesDataDir;
-            addProcess.StartInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            addProcess.StartInfo.CreateNoWindow = true;
-            addProcess.EnableRaisingEvents = true;
-            addProcess.Exited += new EventHandler(
-                (object sender, EventArgs e) => addProcessHandled.TrySetResult(true)
-            );
-            _ = addProcess.Start();
-
-            // Wait no longer than 15 minutes
-            _ = await Task.WhenAny(addProcessHandled.Task, Task.Delay(60 * 1000 * 15));
-
-            logger.Info("games added successfully");
-
-            return true;
+            return result;
         }
 
         public async Task<bool> Initialise()
@@ -149,14 +116,14 @@ namespace SteamRomManagerCompanion
             };
         }
 
-        public SteamRomManagerParserConfig CreateUserConfiguration(Guid guid, string name)
+        public SteamRomManagerParserConfig CreateUserConfiguration(Guid guid, string title)
         {
             return new SteamRomManagerParserConfig
             {
                 ParserType = "Manual",
-                ConfigTitle = $"Playnite - {name}",
+                ConfigTitle = $"Playnite - {title}",
                 SteamDirectory = "${steamDirGlobal}",
-                SteamCategory = $"${{{name}}}",
+                SteamCategory = $"${{{title}}}",
                 RomDirectory = "",
                 ExecutableArgs = "",
                 ExecutableModifier = "\"${exePath}\"",
@@ -234,7 +201,7 @@ namespace SteamRomManagerCompanion
                     Logo = null,
                     Icon = null,
                 },
-                ParserId = $"GeneratedByPlayniteSteamRomManagerCompanion_{guid}",
+                ParserId = guid.ToString(),
                 Disabled = false,
                 Version = 15
             };

@@ -63,6 +63,13 @@ namespace SteamRomManagerCompanion
             { Guid.Parse("7e4fbb5e-2ae3-48d4-8ba0-6b30e7a4e287"), (Library.XboxLibrary, "Xbox") },
         };
 
+        public (Guid id, Library libary, string name, LibraryPlugin plugin) GetLibraryById(Guid id)
+        {
+            var (library, name) = PlayniteHelper.LibraryDictionary[id];
+            var plugin = (LibraryPlugin)api.Addons.Plugins.Where(x => x.Id == id).Single();
+            return (id, library, name, plugin);
+        }
+
         public IEnumerable<Game> GetVisibleNonSteamGames()
         {
             return api.Database.Games
@@ -70,28 +77,32 @@ namespace SteamRomManagerCompanion
                 .Where(g => !GetLibraryPlugin(g).Name.ToLower().Contains("steam"));
         }
 
+        public IEnumerable<Plugin> GetLibraryPlugins()
+        {
+            return (IEnumerable<LibraryPlugin>)api.Database.Games
+                .Select(x => x.PluginId)
+                .Distinct()
+                .SelectMany(x => api.Addons.Plugins.Where(p => p.Id == x));
+        }
+
         public LibraryPlugin GetLibraryPlugin(Game g)
         {
             return (LibraryPlugin)api.Addons.Plugins.Where(x => x.Id == g.PluginId).Single();
         }
 
-        public IEnumerable<(Guid, IEnumerable<Game>, string)> GenerateLibraryCacheStatuses(IEnumerable<Game> nonSteamGames)
+        public IEnumerable<(LibraryPlugin library, IEnumerable<Game> games, bool hasChanged, string cacheValue)> GetLibraryUpdateStatuses(IEnumerable<Game> nonSteamGames)
         {
             return nonSteamGames
                 .Select(x => x.PluginId)
                 .Distinct()
                 .Select(pluginId =>
                 {
-                    var gamesInLibrary = nonSteamGames.Where(g => g.PluginId == pluginId);
+                    var games = nonSteamGames.Where(g => g.PluginId == pluginId);
                     var prev = ReadLibrarySyncCache(pluginId.ToString());
-                    var next = string.Join(",", gamesInLibrary.Select(x => x.Id).OrderBy(x => x));
+                    var next = string.Join(",", games.Select(x => x.Id).OrderBy(x => x));
+                    var plugin = GetLibraryById(pluginId).plugin;
 
-                    return (pluginId, gamesInLibrary, isSyncRequired: prev != next, next);
-                })
-                .Where(x => x.isSyncRequired)
-                .Select(x =>
-                {
-                    return (guid: x.pluginId, games: x.gamesInLibrary, cacheValue: x.next);
+                    return (plugin, games, hasChanged: prev != next, next);
                 });
         }
 

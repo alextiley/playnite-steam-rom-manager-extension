@@ -57,6 +57,7 @@
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Source\Helpers\ProcessHelper.cs" />
     <Compile Include="Source\Models\SteamRomManagerUserSettings.cs" />
     <Compile Include="Source\Models\SteamRomManagerParserConfig.cs" />
     <Compile Include="Source\DataSources\SteamRomManagerHelper.cs" />

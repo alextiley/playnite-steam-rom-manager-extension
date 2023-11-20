@@ -99,31 +99,26 @@ namespace SteamRomManagerCompanion
 
         public override void OnLibraryUpdated(OnLibraryUpdatedEventArgs args)
         {
-            logger.Info("library updated, attempting to sync Playnite library to Steam");
-
             var nonSteamGames = playniteHelper.GetVisibleNonSteamGames();
-            var cacheResultsByLibrary = playniteHelper.GenerateLibraryCacheStatuses(nonSteamGames);
+            var libraryUpdateStatuses = playniteHelper.GetLibraryUpdateStatuses(nonSteamGames);
+            var updatedLibrariesData = libraryUpdateStatuses.Where(x => x.hasChanged);
+            var nonUpdatedLibrariesData = libraryUpdateStatuses.Where(x => !x.hasChanged);
+            var updatedLibraryCount = updatedLibrariesData.Count();
+            var updatedLibraryNames = updatedLibrariesData.Select(x => x.library.Name);
 
-            if (!cacheResultsByLibrary.HasItems())
+            if (updatedLibraryCount == 0)
             {
                 logger.Info("no changes since the previous library import. skipping.");
                 return;
             }
 
-            logger.Info($"updates found for {cacheResultsByLibrary.Count()} libraries");
-
             var wasSteamRunning = steamHelper.IsRunning();
             if (!CheckUserWishesToSync(wasSteamRunning))
             {
-                logger.Info("user has requested to abort steam rom manager sync, exiting.");
                 return;
             }
 
-            var options = new GlobalProgressOptions("Checking for dependencies...", true)
-            {
-                Cancelable = false,
-                IsIndeterminate = false,
-            };
+            var options = new GlobalProgressOptions("Working...", true) { Cancelable = false };
 
             _ = PlayniteApi.Dialogs.ActivateGlobalProgress(async (progress) =>
             {
@@ -135,11 +130,10 @@ namespace SteamRomManagerCompanion
                     return;
                 }
 
-                var configs = cacheResultsByLibrary.Select(cacheResult =>
+                updatedLibrariesData.ForEach(updates =>
                 {
-                    var (guid, games, cacheValue) = cacheResult;
-
-                    var entries = games.Select(game => new SteamRomManagerManifestEntry(
+                    var (library, games, _, _) = updates;
+                    var manifests = games.Select(game => new SteamRomManagerManifestEntry(
                         new SteamRomManagerManifestEntryArgs
                         {
                             LaunchOptions = $"\"{Path.Combine(filesystemHelper.scriptsDir, "launch.vbs")}\" \"{game.Id}\"",
@@ -148,15 +142,30 @@ namespace SteamRomManagerCompanion
                             Title = game.Name
                         }
                     ));
-
-                    WriteManifest(entries, guid);
-
-                    var (_, libraryName) = PlayniteHelper.LibraryDictionary[guid];
-
-                    return steamRomManagerHelper.CreateUserConfiguration(guid, libraryName);
+                    WriteManifest(library, manifests);
                 });
 
-                steamRomManagerHelper.WriteUserConfigurations(configs);
+                var updatedLibraryConfigs = updatedLibrariesData.Select(x =>
+                {
+                    var (library, _, _, _) = x;
+                    var (_, title) = PlayniteHelper.LibraryDictionary[library.Id];
+
+                    return steamRomManagerHelper.CreateUserConfiguration(library.Id, title);
+                });
+
+                // Also generate and save non updated libraries.
+                // This will allow manual runs of the SRM GUI.
+                var nonUpdatedLibraryConfigs = nonUpdatedLibrariesData.Select(x =>
+                {
+                    var (library, _, _, _) = x;
+                    var (_, title) = PlayniteHelper.LibraryDictionary[library.Id];
+
+                    return steamRomManagerHelper.CreateUserConfiguration(library.Id, title);
+                });
+
+                var allLibraryConfigs = updatedLibraryConfigs.Concat(nonUpdatedLibraryConfigs);
+
+                steamRomManagerHelper.WriteUserConfigurations(allLibraryConfigs);
 
                 if (wasSteamRunning)
                 {
@@ -167,9 +176,10 @@ namespace SteamRomManagerCompanion
                     steamHelper.Stop();
                 }
                 progress.CurrentProgressValue += 1;
-                progress.Text = "Working...";
 
-                if (!await steamRomManagerHelper.ConfigureSync())
+                var configIds = updatedLibraryConfigs.Select(x => x.ParserId);
+
+                if (!await steamRomManagerHelper.ConfigureSync(configIds))
                 {
                     return;
                 }
@@ -189,12 +199,8 @@ namespace SteamRomManagerCompanion
                     steamHelper.Start();
                 }
 
-                cacheResultsByLibrary.ForEach(
-                    x =>
-                    {
-                        var (guid, _, value) = x;
-                        playniteHelper.WriteLibrarySyncCache(guid.ToString(), value);
-                    }
+                updatedLibrariesData.ForEach(
+                    x => playniteHelper.WriteLibrarySyncCache(x.library.Id.ToString(), x.cacheValue)
                 );
 
                 ShowSuccessNotification("Your non-Steam games were successfully added!");
@@ -261,9 +267,9 @@ namespace SteamRomManagerCompanion
             );
         }
 
-        private void WriteManifest(IEnumerable<SteamRomManagerManifestEntry> entries, Guid guid)
+        private void WriteManifest(LibraryPlugin library, IEnumerable<SteamRomManagerManifestEntry> entries)
         {
-            var path = Path.Combine(filesystemHelper.manifestsDataDir, guid.ToString(), "manifest.json");
+            var path = Path.Combine(filesystemHelper.manifestsDataDir, library.Id.ToString(), "manifest.json");
 
             filesystemHelper.CreateDirectory(filesystemHelper.manifestsDataDir);
             filesystemHelper.WriteJson(path, entries);
