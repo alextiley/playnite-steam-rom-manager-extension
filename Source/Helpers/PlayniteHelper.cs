@@ -74,7 +74,7 @@ namespace SteamRomManagerCompanion
         {
             return api.Database.Games
                 .Where((g) => !g.Hidden)
-                .Where(g => !GetLibraryPlugin(g).Name.ToLower().Contains("steam"));
+                .Where((g) => !GetLibraryPlugin(g).Name.ToLower().Contains("steam"));
         }
 
         public IEnumerable<Plugin> GetLibraryPlugins()

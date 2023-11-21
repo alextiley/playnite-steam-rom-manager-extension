@@ -22,12 +22,14 @@ namespace SteamRomManagerCompanion
         private readonly LaunchGameUriHandler uriHandler;
         private readonly FilesystemHelper filesystemHelper;
 
-        private SteamRomManagerCompanionSettingsViewModel Settings { get; set; }
+        private SteamRomManagerCompanionSettingsViewModel SettingsViewModel { get; set; }
 
         public override Guid Id { get; } = Guid.Parse("5fe1d136-a9dc-44d7-80d2-43c02df6e546");
 
         public SteamRomManagerCompanion(IPlayniteAPI api) : base(api)
         {
+            SettingsViewModel = new SteamRomManagerCompanionSettingsViewModel(this);
+            Properties = new GenericPluginProperties { HasSettings = true };
             steamHelper = new SteamHelper();
 
             uriHandler = new LaunchGameUriHandler(new LaunchGameUriHandlerArgs
@@ -57,9 +59,6 @@ namespace SteamRomManagerCompanion
                 SteamInstallDir = steamHelper.GetInstallPath(),
                 SteamActiveUsername = steamHelper.GetActiveSteamUsername()
             });
-
-            Settings = new SteamRomManagerCompanionSettingsViewModel(this);
-            Properties = new GenericPluginProperties { HasSettings = true };
         }
 
         public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
@@ -209,7 +208,7 @@ namespace SteamRomManagerCompanion
 
         public override ISettings GetSettings(bool firstRunSettings)
         {
-            return Settings;
+            return SettingsViewModel;
         }
 
         public override UserControl GetSettingsView(bool firstRunSettings)
